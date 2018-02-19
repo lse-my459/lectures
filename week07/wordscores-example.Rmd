@@ -1,0 +1,91 @@
+---
+title: "Supervised ideological scaling"
+author: Ken Benoit & Pablo Barbera
+date: February 19, 2019
+output: html_document
+---
+
+## Wordscores
+
+The following code replicates the UK manifestos scaling example from LBG 2003.
+
+```{r}
+# loading data
+library(quanteda)
+data(data_corpus_ukmanifestos, package = "quanteda.corpora")
+# cleaning dataset
+ukCorpus <- corpus_subset(data_corpus_ukmanifestos, Year %in% c(1992, 1997) & Party %in% c("Con", "Lab", "LD"))
+docnames(ukCorpus) <- paste(docvars(ukCorpus, "Party"), docvars(ukCorpus, "Year"), sep="_")
+# creating DFM
+ukDfm <- dfm(ukCorpus)
+summary(ukCorpus)
+
+# fitting wordscores
+ws <- textmodel_wordscores(ukDfm, c(17.21, 5.35, 8.21, rep(NA, 3)))
+
+# checking a few individual wordscores
+coef(ws)[c("drugs", "minorities", "unemployment")]
+
+# Now trying to predict the scores for all the manifestos
+predict(ws)
+# almost but not exactly!
+(pred <- predict(ws, newdata = ukDfm[4:6, ], rescaling = "lbg"))
+
+# with smoothing
+wsSm <- textmodel_wordscores(ukDfm, c(17.21, 5.35, 8.21, rep(NA, 3)), smooth = 1)
+predict(wsSm)
+predsm <- predict(wsSm, newdata = ukDfm[4:6,], rescaling = "lbg")
+cor(pred, predsm)
+
+```
+
+### Wordscores applied to Twitter data
+
+Let's check another example of wordscores. Here we have tweets from a random sample of 100 Members of the U.S. Congress, as well as their ideal points based on roll-call votes. Can we replicate the ideal points only using the text of their tweets?
+
+First, let's create a corpus and DFM objects
+
+```{r}
+cong <- read.csv("congress-tweets.csv", stringsAsFactors=F)
+library(quanteda)
+# create corpus object
+ccorpus <- corpus(cong$text)
+docnames(ccorpus) <- cong$screen_name
+# create DFM
+cdfm <- dfm(ccorpus, remove_punct=TRUE, remove=c(stopwords("english"), "t.co", "https", "rt", "amp", "http", "t.c", "can"))
+# trimming rare terms
+cdfm <- dfm_trim(cdfm, min_docfreq = 2)
+```
+
+Now we can run wordscores on this DFM. To begin with, we choose as reference texts all the documents, simply so that we can look at the individual word scores:
+
+```{r}
+# running wordscores
+ws <- textmodel_wordscores(cdfm, cong$idealPoint, smooth=.5)
+ws
+# let's look at the most discriminant words
+sw <- sort(coef(ws))
+head(sw, n=20)
+tail(sw, n=20)
+```
+
+Now let's do a more typical example of Wordscores by selecting 20 of the Members of Congress as reference texts and trying to predict the ideal point for the other 80.
+
+```{r}
+set.seed(123)
+test <- sample(1:nrow(cong), floor(.20 * nrow(cong)))
+# extracting ideal points and replacing them with missing values
+refpoints <- cong$idealPoint
+refpoints[test] <- NA
+# running wordscores
+ws <- textmodel_wordscores(cdfm, refpoints, smooth=.5)
+# predicted values
+preds <- predict(ws, rescaling="lbg")
+# and let's compare
+plot(preds[test], cong$idealPoint[test],
+     xlab="Wordscores estimates", 
+     ylab="Ideal points from roll-call votes",
+     col=ifelse(cong$party[test]=="R", "red", "blue"))
+cor(preds[test], cong$idealPoint[test])
+```
+
