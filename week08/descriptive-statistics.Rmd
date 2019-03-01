@@ -1,0 +1,58 @@
+---
+title: "Lexical diversity and readability"
+output: html_document
+---
+
+# Lexical diversity
+
+```{r}
+require(quanteda)
+```
+
+`textstat_lexdiv()` calculates lexical diversity in various measures based on the number of unique types of tokens and the length of a document. It is useful for analysing speakers' or writers' linguistic skill, or complexity of ideas expressed in documents.
+
+
+```{r}
+dfmat_inaug <- dfm(data_corpus_inaugural, remove = stopwords('en'))
+tstat_lexdiv <- textstat_lexdiv(dfmat_inaug)
+tail(tstat_lexdiv, 5)
+```
+
+
+```{r}
+plot(tstat_lexdiv$TTR, type = 'l', xaxt = 'n', xlab = NULL, ylab = "TTR")
+grid()
+axis(1, at = seq_len(nrow(tstat_lexdiv)), labels = docvars(dfmat_inaug, 'President'))
+```
+
+It can also calculate alternative metrics of lexical diversity:
+
+```{r}
+# variations of TTR
+tstat_lexdiv <- textstat_lexdiv(dfmat_inaug, measure=c("TTR", "R", "D"))
+tail(tstat_lexdiv, 5)
+# average-based methods
+tstat_lexdiv_avg <- textstat_lexdiv(tokens(data_corpus_inaugural), measure="MATTR")
+tail(tstat_lexdiv_avg, 5)
+
+cor(cbind(tstat_lexdiv[,2:4], tstat_lexdiv_avg[,2]))
+```
+
+# Readability
+
+`textstat_readability()` computes a metric of document complexity based on characteristics of the text such as number of words, sentence length, number of syllables, etc.
+
+```{r}
+stat_read <- textstat_readability(data_corpus_inaugural,
+                     measure = c("Flesch.Kincaid", "FOG"))
+plot(stat_read$Flesch.Kincaid, type = 'l', xaxt = 'n', xlab = NULL, ylab = "Flesch.Kincaid")
+grid()
+axis(1, at = seq_len(nrow(stat_read)), labels = docvars(dfmat_inaug, 'President'))
+```
+
+
+
+
+
+
+
