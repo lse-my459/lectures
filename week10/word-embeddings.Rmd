@@ -1,0 +1,282 @@
+---
+title: "Word embeddings"
+author: Pablo Barbera
+output: html_document
+---
+
+#### word2vec
+
+Word embeddings is a way to tranform text into features. Instead of using vectors of word counts, words now are represented as positions on a latent multidimensional space. These positions are weights from an underlying deep learning models where the use of words are predicted based on the contiguous words. The idea is that words that have similar weights are likely to be used surrounded by the same words. 
+
+`word2vec` is a method to compute word embeddings developed by Google. There are others (e.g. `Glove`), but it is quite popular and we can use pre-trained models to speed up our analysis.
+
+Let's see what we can do with it usign the `rword2vec` package in R. The examples here are based on the package materials, available [here](https://github.com/mukul13/rword2vec).
+
+```{r}
+#library(devtools)
+#install_github("mukul13/rword2vec")
+library(rword2vec)
+library(lsa)
+```
+
+This is how you would train the model. Note that this chunk of code will take a LONG time, so don't run it. There are different ways to train the model (see ?word2vec for details)
+
+```{r, eval=FALSE}
+model <- word2vec(
+	train_file = "text8",
+	output_file = "vec.bin",
+	binary=1,
+	num_threads=3,
+	debug_mode=1)
+```
+
+To speed up the process, I'm providing a pre-trained model, available in the file `vec.bin`. We can now use it to run some analyses.
+
+We'll start by computing the most similar words to a specific word, where _similar_ means how close they are on the latent multidimensional space.
+
+```{r}
+distance(file_name = "vec.bin",
+		search_word = "princess",
+		num = 10)
+distance(file_name = "vec.bin",
+	search_word = "terrible",
+	num = 10)
+distance(file_name = "vec.bin",
+	search_word = "london",
+	num = 10)
+distance(file_name = "vec.bin",
+	search_word = "uk",
+	num = 10)
+distance(file_name = "vec.bin",
+	search_word = "philosophy",
+	num = 10)
+```
+
+Where do these similarities come from? Let's extract the underlying word vectors.
+
+```{r}
+# Extracting word vectors
+bin_to_txt("vec.bin", "vector.txt")
+
+library(readr)
+data <- read_delim("vector.txt", 
+	skip=1, delim=" ",
+	col_names=c("word", paste0("V", 1:100)))
+data[1:10, 1:6]
+```
+
+That's the value of each word for each of the first five dimensions. We can plot some of these to understand better exactly what we're working with:
+
+```{r}
+plot_words <- function(words, data){
+  # empty plot
+  plot(0, 0, xlim=c(-2.5, 2.5), ylim=c(-2.5,2.5), type="n",
+       xlab="First dimension", ylab="Second dimension")
+  for (word in words){
+    # extract first two dimensions
+    vector <- as.numeric(data[data$word==word,2:3])
+    # add to plot
+    text(vector[1], vector[2], labels=word)
+  }
+}
+
+plot_words(c("good", "better", "bad", "worse"), data)
+plot_words(c("microsoft", "yahoo", "apple", "mango", "peach"), data)
+plot_words(c("atheist", "agnostic", "catholic", "buddhist", "protestant", "christian"), data)
+plot_words(c("government", "economics", "sociology", 
+             "philosophy", "law", "engineering", "astrophysics",
+             "biology", "physics", "chemistry"), data)
+
+```
+
+Once we have the vectors for each word, we can compute the similarity between a pair of words:
+
+```{r}
+similarity <- function(word1, word2){
+	lsa::cosine(
+		x=as.numeric(data[data$word==word1,2:101]),
+		y=as.numeric(data[data$word==word2,2:101]))
+
+}
+
+similarity("australia", "england")
+similarity("australia", "canada")
+similarity("australia", "apple")
+```
+
+The final function provided by the package is `word_analogy`, which helps us find regularities in the word vector space:
+
+```{r}
+word_analogy(file_name = "vec.bin",
+	search_words = "king queen man",
+	num = 1)
+
+word_analogy(file_name = "vec.bin",
+	search_words = "paris france berlin",
+	num = 1)
+
+word_analogy(file_name = "vec.bin",
+	search_words = "man woman uncle",
+	num = 2)
+
+word_analogy(file_name = "vec.bin",
+	search_words = "building architect software",
+	num = 1)
+
+word_analogy(file_name = "vec.bin",
+	search_words = "man actor woman",
+	num = 5)
+
+word_analogy(file_name = "vec.bin",
+	search_words = "france paris uk",
+	num = 1)
+
+word_analogy(file_name = "vec.bin",
+	search_words = "up down inside",
+	num = 2)
+
+```
+
+And we can see some examples of algorithmic bias (but really, bias in the training data):
+
+```{r}
+word_analogy(file_name = "vec.bin",
+	search_words = "man woman professor",
+	num = 1)
+word_analogy(file_name = "vec.bin",
+	search_words = "man doctor woman",
+	num = 1)
+```
+
+#### Applications of word embeddings
+
+Beyond this type of exploratory analysis, word embeddings can be very useful in analyses of large-scale text corpora in two different ways: to expand existing dictionaries and as a way to build features for a supervised learning classifier. 
+The code below shows how to expand a dictionary of uncivil words. By looking for other words with semantic similarity to each of these terms, we can identify words that we may not have thought of in the first place, either because they're slang, new words or just misspellings of existing words.
+
+Here we will use a different set of pre-trained word embeddings, which were computed on a large corpus of public Facebook posts on the pages of US Members of Congress that we collected from the Graph API.
+
+```{r}
+distance(file_name = "FBvec.bin",
+		search_word = "liberal",
+		num = 10)
+distance(file_name = "FBvec.bin",
+		search_word = "crooked",
+		num = 10)
+distance(file_name = "FBvec.bin",
+		search_word = "libtard",
+		num = 10)
+distance(file_name = "FBvec.bin",
+		search_word = "douchebag",
+		num = 10)
+distance(file_name = "FBvec.bin",
+		search_word = "idiot",
+		num = 10)
+```
+
+We can also take the embeddings themselves as features at the word level and then aggregate to a document level as an alternative or complement to bag-of-word approaches.
+
+Let's see an example with a:
+
+```{r}
+library(quanteda)
+fb <- read.csv("incivility.csv", stringsAsFactors = FALSE)
+fbcorpus <- corpus(fb$comment_message)
+fbdfm <- dfm(fbcorpus, remove=stopwords("english"), verbose=TRUE)
+fbdfm <- dfm_trim(fbdfm, min_docfreq = 2, verbose=TRUE)
+```
+
+First, we will convert the word embeddings to a data frame, and then we will match the features from each document with their corresponding embeddings.
+
+```{r}
+bin_to_txt("FBvec.bin", "FBvector.txt")
+
+# extracting word embeddings for words in corpus
+w2v <- readr::read_delim("FBvector.txt", 
+                  skip=1, delim=" ", quote="",
+                  col_names=c("word", paste0("V", 1:100)))
+w2v <- w2v[w2v$word %in% featnames(fbdfm),]
+
+# creating new feature matrix for embeddings
+embed <- matrix(NA, nrow=ndoc(fbdfm), ncol=100)
+for (i in 1:ndoc(fbdfm)){
+  if (i %% 100 == 0) message(i, '/', ndoc(fbdfm))
+  # extract word counts
+  vec <- as.numeric(fbdfm[i,])
+  # keep words with counts of 1 or more
+  doc_words <- featnames(fbdfm)[vec>0]
+  # extract embeddings for those words
+  embed_vec <- w2v[w2v$word %in% doc_words, 2:101]
+  # aggregate from word- to document-level embeddings by taking AVG
+  embed[i,] <- colMeans(embed_vec, na.rm=TRUE)
+  # if no words in embeddings, simply set to 0
+  if (nrow(embed_vec)==0) embed[i,] <- 0
+}
+
+```
+
+Let's now try to replicate the lasso classifier we estimated earlier with this new feature set.
+
+```{r}
+set.seed(123)
+training <- sample(1:nrow(fb), floor(.80 * nrow(fb)))
+test <- (1:nrow(fb))[1:nrow(fb) %in% training == FALSE]
+
+## function to compute accuracy
+accuracy <- function(ypred, y){
+	tab <- table(ypred, y)
+	return(sum(diag(tab))/sum(tab))
+}
+# function to compute precision
+precision <- function(ypred, y){
+	tab <- table(ypred, y)
+	return((tab[2,2])/(tab[2,1]+tab[2,2]))
+}
+# function to compute recall
+recall <- function(ypred, y){
+	tab <- table(ypred, y)
+	return(tab[2,2]/(tab[1,2]+tab[2,2]))
+}
+
+```
+
+```{r}
+library(glmnet)
+require(doMC)
+registerDoMC(cores=3)
+lasso <- cv.glmnet(embed[training,], fb$attacks[training], 
+	family="binomial", alpha=1, nfolds=5, parallel=TRUE, intercept=TRUE,
+	type.measure="class")
+
+# computing predicted values
+preds <- predict(lasso, embed[test,], type="class")
+# confusion matrix
+table(preds, fb$attacks[test])
+# performance metrics
+accuracy(preds, fb$attacks[test])
+precision(preds==1, fb$attacks[test]==1)
+recall(preds==1, fb$attacks[test]==1)
+precision(preds==0, fb$attacks[test]==0)
+recall(preds==0, fb$attacks[test]==0)
+```
+
+We generally find quite good performance with a much smaller set of features. Of course, one downside of this approach is that it's very hard to interpret the coefficients we get from the lasso regression.
+
+```{r}
+best.lambda <- which(lasso$lambda==lasso$lambda.1se)
+beta <- lasso$glmnet.fit$beta[,best.lambda]
+head(beta)
+ 
+## identifying predictive features
+df <- data.frame(coef = as.numeric(beta),
+				word = names(beta), stringsAsFactors=F)
+
+df <- df[order(df$coef),]
+head(df[,c("coef", "word")], n=30)
+df <- df[order(df$coef, decreasing=TRUE),]
+head(df[,c("coef", "word")], n=30)
+
+head(w2v[order(w2v$V83, decreasing=TRUE),"word"], n=20)
+head(w2v[order(w2v$V98),"word"], n=20)
+
+```
+
