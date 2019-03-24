@@ -1,0 +1,119 @@
+---
+title: "Data in PDF files"
+author: Pablo Barbera
+output: html_document
+---
+
+#### Extracting text from PDF files
+
+The other common scenario consists on extracting text that is embedded in PDF files. As noted earlier, how easy it is to convert the PDF file into machine-readable text will depend on whether the text is internally stored as such, and not as an image.
+
+There are different methods to extract the text. Here I'll show the one that in my opinion is better -- `pdftotext`, an open-source tool that is part of the [Xpdf project](http://www.foolabs.com/xpdf/about.html). If you want to install it in your laptop, you can [download it here](http://www.foolabs.com/xpdf/download.html). It should work on all operating systems. See the `INSTALL` files for specific instructions.
+
+We will run `pdftotext` not in the R console, but in your operating system's console. For example, if you're using a Mac, you would open the terminal and type the code. Since the way to do this varies across systems, we will instead run it from within R using the `system` function.
+
+```{r}
+system("pdftotext")
+```
+
+As you can see, we can ran pdftotext with different configurations. Which one is best will depend on your application. As a first example, let's look at a press release from the European Court of Human Rights about the outcome a case.
+
+```{r}
+system("pdftotext press-release.pdf")
+```
+
+The output file (in plain text) will have the same name unless we change it.
+
+```{r}
+system("pdftotext press-release.pdf press-release-output.txt")
+```
+
+If you look at the text of the file, you can see some of what we discussed earlier - any text that is internally represented as an image cannot be parsed.
+
+We can also choose the specific pages to parse:
+
+```{r}
+system("pdftotext -f 1 -l 2 press-release.pdf")
+```
+
+Let's now work on a more advanced example. The document `arrests.pdf` contains a [list of Argentinian citizens arrested during the Pinochet regime](http://ftp2.errepar.com/bo/2013/04/SUPLE_17-04-2013.pdf). We'll try to parse the list here into a data frame format.
+
+```{r}
+system("pdftotext arrests.pdf")
+```
+
+Note that by default `pdftotext` will try to ignore the column layout, but if we wanted we would keep it:
+
+```{r}
+system("pdftotext -layout arrests.pdf arrests-layout.txt")
+```
+
+We can now use regular expressions to identify the blocks of text with the names of the arrests (because they are always in the first article of each decree), as well as the dates (because they all have "Bs. As." right before):
+
+```{r}
+txt <- readLines("arrests.txt", encoding = "latin1")
+txt[200:250]
+# names of those arrested
+ar.init <- grep("Arréstese.*", txt)
+ar.ends <- grep("Art. 2.*", txt)
+txt[ ar.init[1] : ar.ends[1] ]
+# dates of arrests
+dates <- grep("^Bs\\. As\\.", txt)
+txt[ dates[1] ]
+```
+
+Let's try to scrape the data for the first set of arrests and later on we'll generalize:
+
+```{r}
+init <- ar.init[1]
+end <- ar.ends[ar.ends > init][1] # the first end line after the line we just chose
+# this is what we will try to extract:
+(data <- txt[init:end])
+# now let's convert everything into a single string
+data <- paste(data, collapse=" ")
+# note that everything before "Ejecutivo Nacional" and starting with "Art. 2" is useless
+data <- gsub(".*Nacional a:? (.*)\\. Art.*", data, repl="\\1")
+# and let's split it back into substrings divided by ";"
+data <- strsplit(data, ";")[[1]]
+# we're almost there! Note that the name is everything *before* the parenthesis
+names <- gsub(" ?(.*) \\(.*", data, repl="\\1")
+# and the DNI (ID number) is everything *after*
+dni <- gsub(".*\\((.*)\\)", data, repl="\\1")
+
+# now, let's go back to the date
+date <- txt[tail(dates[dates < init], n=1)] # first date after init
+date <- gsub("Bs\\. As\\., ", "", date) # remove Bs. As.
+
+# put everything into a data frame
+df <- data.frame(date, names, dni, stringsAsFactors=F)
+
+```
+
+That seemed to work! Let's now replicate it for the entire dataset, inside a loop:
+
+```{r}
+arrests <- c()
+
+for (init in ar.init){
+	
+	# extracting text
+	end <- ar.ends[ar.ends > init][1]
+	data <- txt[init:end]
+	# cleaning text
+	data <- paste(data, collapse=" ")
+	data <- gsub(".*Nacional a:? (.*)\\. Art.*", data, repl="\\1")
+	data <- strsplit(data, ";")[[1]]
+	# extracting names and DNI
+	names <- gsub("(.*) \\(.*", data, repl="\\1")
+	dni <- gsub(".*\\((.*)\\)", data, repl="\\1")
+	# extracting dates
+	date <- txt[tail(dates[dates < init], n=1)] # first date after init
+	date <- gsub("Bs\\. As\\., ", "", date) # remove Bs. As.
+	# everything into a data frame
+	df <- data.frame(date, names, dni, stringsAsFactors=F)
+	arrests <- rbind(arrests, df)
+}
+```
+
+If you look at the data frame, you'll see it's not completely perfect, but the rest we could edit them by hand, or tweak the function until it works.
+
