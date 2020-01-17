@@ -1,6 +1,6 @@
 ---
 title: "Data in PDF files"
-author: Pablo Barbera
+author: Blake Miller
 output: html_document
 ---
 

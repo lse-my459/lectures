@@ -1,6 +1,6 @@
 ---
 title: "Topic models"
-author: Pablo Barbera
+author: Blake Miller
 output: html_document
 ---
 

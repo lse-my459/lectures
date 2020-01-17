@@ -1,5 +1,5 @@
 ---
-author: "Pablo Barberá"
+author: "Blake Miller"
 output:
   html_document: default
   pdf_document: default

@@ -1,6 +1,6 @@
 ---
 title: "Encoding issues"
-author: Pablo Barbera
+author: Blake Miller
 output: html_document
 ---
 

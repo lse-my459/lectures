@@ -1,6 +1,6 @@
 ---
 title: "Dictionary methods"
-author: Pablo Barbera
+author: Blake Miller
 output: html_document
 ---
 

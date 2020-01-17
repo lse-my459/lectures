@@ -1,6 +1,6 @@
 ---
 title: "Word embeddings"
-author: Pablo Barbera
+author: Blake Miller
 output: html_document
 ---
 
