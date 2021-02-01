@@ -1,6 +1,5 @@
 ---
 title: "Dictionary methods"
-author: Blake Miller
 output: html_document
 ---
 
@@ -20,7 +19,7 @@ We will use the positive and negative categories in the augmented General Inquir
 Note that first you will need to install the `quanteda.dictionaries` package from GitHub
 
 ```{r, eval=FALSE}
-devtools::install_github("kbenoit/quanteda.dictionaries")
+devtools::install_github("kbenoit/quanteda.dictionaries", force=TRUE)
 ```
 
 First, we load the dictionary object. Note that we can apply the dictionary object directly (as we will see later), but for now let's learn how to do this if we had a list of positive and negative words on a different file.
@@ -45,14 +44,14 @@ twcorpus <- corpus(tweets)
 Now we're ready to run the sentiment analysis! First we will construct a dictionary object.
 
 ```{r}
-mydict <- dictionary(list(positive = pos.words,
+sent_dictionary <- dictionary(list(positive = pos.words,
                           negative = neg.words))
 ```
 
 And now we apply it to the corpus in order to count the number of words that appear in each category
 
 ```{r}
-sent <- dfm(twcorpus, dictionary = mydict)
+sent <- dfm(twcorpus, dictionary = sent_dictionary)
 ```
 
 We can then extract the score and add it to the data frame as a new variable
@@ -94,9 +93,9 @@ But what happens if we now run the analysis excluding a single word?
 ```{r}
 pos.words <- pos.words[-which(pos.words=="great")]
 
-mydict <- dictionary(list(positive = pos.words,
+sent_dictionary <- dictionary(list(positive = pos.words,
                           negative = neg.words))
-sent <- dfm(twcorpus, dictionary = mydict)
+sent <- dfm(twcorpus, dictionary = sent_dictionary)
 tweets$score <- as.numeric(sent[,1]) - as.numeric(sent[,2])
 
 for (cand in candidates){
@@ -120,9 +119,9 @@ twdfm <- dfm_weight(twdfm, scheme="prop")
 twdfm[1:4, 1:10]
 
 # Apply dictionary using `dfm_lookup()` function:
-sent <- dfm_lookup(twdfm, dictionary = mydict)
+sent <- dfm_lookup(twdfm, dictionary = sent_dictionary)
 sent
-(sent[,1]-sent[,2])*100
+(sent[,1]-sent[,2])
 
 ```
 
@@ -144,12 +143,12 @@ twdfm <- dfm_weight(twdfm, scheme="prop")
 moral <- dfm_lookup(twdfm, dictionary = data_dictionary_MFD)
 
 # are liberals more sensitive to care and virtue?
-sort(moral[,'care.virtue']*100)
-sort(moral[,'fairness.virtue']*100)
+dfm_sort(moral[,'care.virtue']*100, margin='documents')
+dfm_sort(moral[,'fairness.virtue']*100, margin='documents')
 
 # are conservatives more sensitive to sanctity and authority?
-sort(moral[,'sanctity.virtue']*100)
-sort(moral[,'authority.virtue']*100)
+dfm_sort(moral[,'sanctity.virtue']*100, margin='documents')
+dfm_sort(moral[,'authority.virtue']*100, margin='documents')
 
 ```
 
