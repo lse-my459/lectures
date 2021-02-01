@@ -19,7 +19,7 @@ We will use the positive and negative categories in the augmented General Inquir
 Note that first you will need to install the `quanteda.dictionaries` package from GitHub
 
 ```{r, eval=FALSE}
-devtools::install_github("kbenoit/quanteda.dictionaries", force=TRUE)
+devtools::install_github("kbenoit/quanteda.dictionaries")
 ```
 
 First, we load the dictionary object. Note that we can apply the dictionary object directly (as we will see later), but for now let's learn how to do this if we had a list of positive and negative words on a different file.
