@@ -19,6 +19,7 @@ Let's read this dataset into R, convert it into a corpus with gender as a docume
 library("quanteda", quietly = TRUE, warn.conflicts = FALSE, verbose = FALSE)
 
 d <- read.csv("data/EN-names.csv", stringsAsFactors=FALSE)
+head(d)
 
 # creating corpus object
 cnames <- corpus(d, text_field = "name")
@@ -42,6 +43,9 @@ namesdfm <- dfm(characters)
 We're now ready to train our model! Let's start with a Naive Bayes model using the `textmodel_nb()` function:
 
 ```{r}
+#install.packages('quanteda.textmodels')
+library(quanteda.textmodels)
+
 # training Naive Bayes model
 nb <- textmodel_nb(namesdfm[train,], docvars(cnames, "gender")[train])
 # predicting labels for test set
@@ -74,11 +78,15 @@ precrecall(cm)
 sum(diag(cm)) / sum(cm)
 ```
 
-Hmm, not terribly great. But what if we try with character n-grams up to trigrams instead of unigrams?
+Hmm, not terribly great. But what if we try with character n-grams up to bigrams instead of unigrams?
 
 ```{r}
-characters <- tokens(cnames, what="character", ngrams=1:3)
+characters <- tokens_ngrams(characters, n=1:3)
+
+
 namesdfm <- dfm(characters)
+namesdfm <- dfm_trim(namesdfm, min_docfreq = 20)
+namesdfm
 # Naive Bayes model
 nb <- textmodel_nb(namesdfm[train,], docvars(cnames, "gender")[train])
 preds <- predict(nb, newdata = namesdfm[test,])
@@ -86,24 +94,23 @@ preds <- predict(nb, newdata = namesdfm[test,])
 # performance
 precrecall(cm) # precision, recall
 sum(diag(cm)) / sum(cm) # accuracy
+
 ```
 
 Slightly better! We can dig a bit more into the model by extracting the posterior class probabilities for specific characters.
 
 ```{r}
 # extracting posterior word probabilities
-probs <- nb$PcGw
+get_posterior <- function(nb) {
+  PwGc <- nb$param
+  Pc <- nb$priors
+  PcGw <- PwGc * base::outer(Pc, rep(1, ncol(PwGc)))
+  PcGw <- matrix(sapply(PcGw, function(x) sqrt(sum(x^2))), nrow=2, dimnames = dimnames(PwGc))
+  names(dimnames(PcGw))[1] <- names(dimnames(PwGc))[1] <- "classes"
+  PwGc
+}
+probs <- get_posterior(nb)
 probs[,c("a", "o", "e")]
-
-# and this is how we would extract the features with the highest and lowest posterior class probabilities
-df <- data.frame(
-  ngram = colnames(probs),
-  prob_female_ngram = probs["female",],
-  stringsAsFactors=F)
-df <- df[order(df$prob_female_ngram),]
-
-head(df, n=10)
-tail(df, n=10)
 ```
 
 
