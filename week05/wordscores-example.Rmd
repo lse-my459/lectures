@@ -10,6 +10,10 @@ The following code replicates the UK manifestos scaling example from LBG 2003.
 ```{r}
 # loading data
 library(quanteda)
+library(quanteda.textmodels)
+# install.packages("devtools")
+# devtools::install_github("quanteda/quanteda.corpora")
+
 data(data_corpus_ukmanifestos, package = "quanteda.corpora")
 # cleaning dataset
 ukCorpus <- corpus_subset(data_corpus_ukmanifestos, Year %in% c(1992, 1997) & Party %in% c("Con", "Lab", "LD"))
@@ -48,7 +52,7 @@ cong <- read.csv("data/congress-tweets.csv", stringsAsFactors=F)
 # create corpus object
 ccorpus <- corpus(cong$text)
 docnames(ccorpus) <- cong$screen_name
-# create DFM
+# create DFM (may take a while)
 cdfm <- dfm(ccorpus, remove_punct=TRUE, remove=c(stopwords("english"), "t.co", "https", "rt", "amp", "http", "t.c", "can"))
 # trimming rare terms
 cdfm <- dfm_trim(cdfm, min_docfreq = 2)
