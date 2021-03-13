@@ -17,7 +17,7 @@ library("quanteda")
 ```
 
 
-A common question, e.g. when analysing scans of old books, is how to read the textual content of PDFs into programming languages such as R or Python. For R, the package [pdftools](see also https://cran.r-project.org/web/packages/pdftools/pdftools.pdf) has a range of functionalities to do this.
+A common question, e.g. when analysing scans of old books, is how to read/parse the textual content of PDFs into programming languages such as R or Python. For R, the package [pdftools](see also https://cran.r-project.org/web/packages/pdftools/pdftools.pdf) has a range of functionalities to do this.
 
 ## 1.1 PDFs containing text
 
@@ -48,7 +48,7 @@ principia_corpus <- principia %>% corpus(
 
 ### 1.2 PDFs only containing text in images
 
-Things become much trickier if the PDFs do not contain machine readable text, but instead image such as scans. You can usually detect this case if you cannot select text in a PDF with your mouse. Yet, there is open source OCR (optical character recognition) software which can be used. In R, the package `tesseract` offers an implementation of Google's Tesseract and `pdftools` has a function which implicitly calls the `tesseract` package. As an example, I have added a photo of the first edition cover of Keynes's General Theory (1936) to the course repo. The following uses OCR software to detect the text on the image and transform it into machine readable text:
+Things become much trickier if the PDFs do not contain machine readable text, but instead image such as scans. You can usually detect this case if you cannot select text in a PDF with your mouse. Yet, there is open source OCR (optical character recognition) software which can be used. In R, the package `tesseract` offers an implementation of Google's Tesseract and `pdftools` has a function which implicitly calls the `tesseract` package. As an example, I have added a photo of the first edition cover of Keynes's General Theory (1936) to the course repo. The following uses OCR software to detect the text on the image and to transform it into machine readable text:
 
 ```{r}
 general_theory_cover <- pdf_ocr_text(pdf = "general_theory_cover.pdf", language = "eng", dpi = 300)

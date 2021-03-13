@@ -113,9 +113,9 @@ cloud(stmodel, topic = 3, scale = c(2,.25))
 cloud(stmodel, topic = 42, scale = c(2,.25))
 ```
 
-One thing to keep in mind when evaluating topic models is that just because something does not show up as a topic, it can still be in the corpus. One (of many) example(s) here is a discussion in the corpus about climate change which does not seem to show up as a clear topic in the current model setting. Thus, while these tools are very helpful for a kind of "automated reading at scale", one will of course miss features of the data.
+One thing to keep in mind when evaluating topic models is that just because something does not show up as a topic, it can still be in the corpus. One (of many) example(s) here is a discussion in the corpus about climate change which does not seem to show up as a clear topic in the current model setting. Thus, while these tools are very helpful for a kind of "automated reading at scale", one will of course miss features of the data. Estimating another model with different K will show some new structures which were previously missed, but other topics can disappear again.
 
-Let us now look into documents which have high shares of these topics and see whether the topic assignment makes sense. This can be done with the function `findThoughts`. We will look at only 2 examples to illustrate the functionality, but of course reading of more articles would be necessary for a serious analysis.
+Let us now look into documents which have high shares of these topics and see whether the topic assignment makes sense. This can be done with the function `findThoughts`. We will look at only 2 examples to illustrate the functionality, but of course reading of more articles would be necessary for a careful analysis.
 
 ```{r fig1, fig.height = 4, fig.width = 2}
 health_care_articles <- findThoughts(stmodel,
@@ -190,7 +190,7 @@ stmodel_additional_content_variable <- stm(documents = stm_input$documents,
                                            init.type = "Spectral")
 ```
 
-Note that this has estimated an new model, so topics will be different:
+Note that this has estimated an new model, so words in topics will be different:
 
 ```{r fig1, fig.height = 6, fig.width = 5}
 plot(stmodel_additional_content_variable)
@@ -208,7 +208,7 @@ With the help of the new content covariate, we can now analyse how the two parti
 plot(stmodel_additional_content_variable, type = "perspectives", topics = 41)
 ```
 
-For other topics, however, the results are less reasonable. While the purpose of this notebook is to illustrate functionalities of (structural) topic models with some real world data, it also emphasises how important careful model selection and evaluation are to obtain more robust results such as in projects like http://j.mp/lda-congress-demo. Some exemplary areas and questions that could be explored here would e.g. be:
+For other topics, however, the results are less reasonable. While the purpose of this notebook is to illustrate a range of functionalities of (structural) topic models with real world data, it also emphasises how important careful model selection and evaluation are in final papers or projects such as http://j.mp/lda-congress-demo. Some exemplary areas and questions that could be explored here would be:
 
 - Aggregation of short documents similarly to Barberá et al. (2014)
 - Choosing different amounts of K based on careful analysis of topic coherence, reading of documents with regard to their topic allocation, and quantitative model evaluation
@@ -216,6 +216,7 @@ For other topics, however, the results are less reasonable. While the purpose of
 - Could different sets of topic prevalence and topic content covariates be helpful, or could some covariates be dropped for the analysis?
 - Is a structural topic model necessary for a certain research question, or could a plain correlated topic model (i.e. no covariates added) be an option?
 - Different pre-processing, e.g. dropping more terms with the options in the function `dfm_trim`
+- Using a larger corpus with many more than the sample of ~10,000 posts (implies, however, that model estimation would take much longer)
 - etc.
 
 For a discussion of model selection and evaluation for structural topic models (e.g. different initialisations, covariates, values of K), see also e.g. Section "3.4. Evaluate: Model selection and search" the package [vignette](https://cran.r-project.org/web/packages/stm/vignettes/stmVignette.pdf) or the Section _Model Specification and Selection_ in ``Structural Topic Models for Open-Ended Survey Responses'' by Roberts et al. (2014).

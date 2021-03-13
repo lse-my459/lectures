@@ -18,7 +18,7 @@ library("tidyverse")
 library("zoo")
 ```
 
-In this notebook, we will study a topic models estimated on the PDF of Newton's Principia (1687) which we just downloaded. Reading the book into R with `pdftools` and creating a document frequency matrix with `quanteda`:
+In this notebook, we will study a topic model estimated on the PDF of Newton's Principia (1687) which we just downloaded. Reading the book into R with `pdftools` and creating a document frequency matrix with `quanteda`:
 
 ```{r}
 principia <- pdf_text("principia.pdf")
@@ -36,7 +36,7 @@ principia_dfm <- principia %>% corpus %>%
 principia_dfm
 ```
 
-Note that since we only look at one book in this simple example and that we treat each page as a document. Some of these pages will contain very little text. More advanced approaches could combine pages, analyse chapters as documents, or many different books.
+Note that we only look at one book in this simple example and that we treat each page as a document. Some of these pages will contain very little text. More advanced approaches could combine pages, analyse chapters as documents, or many different books.
 
 Converting the `quanteda` object into an input for the structural topic model:
 
@@ -66,7 +66,7 @@ cloud(ctmodel, topic = 2, scale = c(2,.25))
 cloud(ctmodel, topic = 3, scale = c(2,.25))
 ```
 
-It seems we have identified three broad themes: A topic that could be called "astronomy", one that contains many terms regarding geometry, equations, geometry and algebra which we could term "maths", and a last topic containing words related to forces we could term a discussion of "mechanics" (although of course large parts of the book are about this topic).
+It seems we have identified three broad themes: A topic that contains terms such as "sun" or "comet" that we could call "astronomy", one that contains terms regarding geometry, equations, and algebra which we could term "maths", and a last topic containing words related to force and motion that we could term "mechanics" (although of course other parts of the book are about this topic as well).
 
 We can also access the key output matrices of the model as discussed in the lecture:
 
@@ -80,9 +80,9 @@ dim(beta)
 vocabulary <- ctmodel$vocab
 ```
 
-Note that if we had added covariates, we would have estimated a structural instead of a correlated topic model, beta would need some re-weighting as can be seen [here](https://github.com/bstewart/stm/blob/master/R/cloud.R). Yet, as many functions access beta for us, we can e.g. obtain the highest probability words for each topic more easily with e.g. `labelTopics(model, n = 20)$prob`.
+Note that if we had added topic content covariates and would have estimated a structural instead of a correlated topic model, the betas would need some weighting as can be seen [here](https://github.com/bstewart/stm/blob/master/R/cloud.R). Yet, as many functions access beta for us, we can e.g. obtain the highest probability words for each topic more easily with e.g. `labelTopics(model, n = 20)$prob`.
 
-What can we learn about the structure of the book with this "automated reading"? Let us smooth topic shares with a 10 page moving average and plot them:
+What can we learn about the structure of the book with this "automated reading"? Let us smooth topic shares in documents with a 10 page moving average and plot them:
 
 ```{r}
 
@@ -105,7 +105,7 @@ p <- ggplot(plot_data, aes(x = Page,
 p + geom_line(aes(color = Topic)) + theme_classic()
 ```
 
-This outcome could now e.g. be crosschecked by looking at the PDF which indeed e.g. indicates that the pages around 150 contain maths in large proportion.
+This outcome could now e.g. be crosschecked by looking at the PDF which indeed indicates that the pages around 150 contain maths in large proportion.
 
 If we had tried different number of topics, we would e.g. also have managed to detect that the first pages of this edition are discussing the life of Newton before the Principia starts. Yet, with a higher number of topics we would would have also had several indistinguishable topics about the same themes. One option to explore would be whether combining pages to create longer documents would improve the fit here and allow to have larger numbers of topics which are still coherent.
 
@@ -116,4 +116,4 @@ topic_correlations <- topicCorr(ctmodel)
 topic_correlations
 ```
 
-Topics 1 and 3 are less negatively correlated, so it seems that mechanics terms such as "force" and astronomy terms such as "planets" appear together relatively more often. If pages were longer and number of topics larger, topics could be positively correlated.
+Topics 1 and 3 are less negatively correlated, so it seems that mechanics terms such as "force" and astronomy terms such as "planets" appear together relatively more often. If pages were longer and the number of topics larger, topics could be positively correlated.
