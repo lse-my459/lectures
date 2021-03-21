@@ -11,6 +11,7 @@ Loading packages:
 library("word2vec")
 library("tm")
 library("pdftools")
+library("stringr")
 ```
 
 Loading the Newton book, removing new line and return codes, and deleting the first pages which have been added by Google as well as empty pages:
@@ -57,6 +58,10 @@ Analogies usually need a large corpus to work well. Note that many packages just
 ```{r}
 # sun is to star what earth is to .. ?
 wv <- predict(word2vec_model, newdata = c("earth", "sun", "star"), type = "embedding")
+
+# Alternatively just use:
+wv <- embedding_matrix[c("earth", "sun", "star"),]
+
 combined_vector <- wv["earth", ] - wv["sun", ] + wv["star", ]
 predict(word2vec_model, newdata = combined_vector, type = "nearest", top_n = 5)
 ```

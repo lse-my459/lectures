@@ -1,5 +1,5 @@
 ---
-title: "Replicating some key results with word embeddings"
+title: "Replicating some key results for word embeddings"
 author: "Friedrich Geiecke"
 date: "22 March 2021"
 output: html_document
@@ -40,6 +40,7 @@ embeddings <- as.matrix(embeddings)
 embeddings <- embeddings / sqrt(rowSums(embeddings^2))
 ```
 
+
 ### 2. A function which returns the most similar words
 
 ```{r}
@@ -54,8 +55,8 @@ similar <- function(word, top_n = 5, embedding_matrix = embeddings) {
   # Obtain the most similar words
   most_similar_words <- names(similarities_to_all_words)[1:(top_n + 1)]
   
-  # Delete the word from the search query which has a similarities of 1
-  most_similar_words <- most_similar_words[!(most_similar_words %in% word)]
+  # Delete the word from the search query which has a similarities of 1 to itself
+  most_similar_words <- most_similar_words[2:length(most_similar_words)]
   
   return(most_similar_words)
   
@@ -112,7 +113,7 @@ analogies <- function(a, b, c, top_n = 1, embedding_matrix = embeddings) {
   similarities_to_all_words <- similarities_to_all_words[order(-similarities_to_all_words[,1]),]
   
   # Obtain the most similar words
-  most_similar_words <- names(similarities_to_all_words)[1:(top_n + 4)]
+  most_similar_words <- names(similarities_to_all_words)[1:(top_n + 3)]
   
   # Delete words from the query should they be among the returned analogies
   most_similar_words <- most_similar_words[!(most_similar_words %in% c(a,b,c))]
@@ -258,7 +259,7 @@ exemplary_words <- c("one", "two", "three", "four", "five",
 exemplary_vectors <- embeddings[exemplary_words,]
 
 
-# TSNE plot
+# tSNE plot
 exemplary_vectors <- normalize_input(exemplary_vectors)
 set.seed(42)
 tsne_out <- Rtsne(exemplary_vectors, dims = 2, perplexity = 3) # perplexity should be <obs/3
