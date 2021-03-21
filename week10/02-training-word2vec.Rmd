@@ -34,7 +34,7 @@ Note that very large files - e.g. the English Wikipedia in one .txt file with on
 The function `word2vec` can read in textual data either in form of a such file from disk (if under `x` we supply the path to the file) or as a character vector as done here:
 
 ```{r}
-word2vec_model <- word2vec(x = "principia.txt", type = "skip-gram", dim = 300, window = 10)
+word2vec_model <- word2vec(x = principia, type = "skip-gram", dim = 300, window = 10)
 ```
 
 For further hyper-parameter options see the [manual](https://cran.r-project.org/web/packages/word2vec/word2vec.pdf) or the original word2vec paper. There are also many online discussions regarding text processing and hyper-parameter tuning for word different embedding models.
