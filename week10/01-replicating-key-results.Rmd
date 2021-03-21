@@ -1,0 +1,298 @@
+---
+title: "Replicating some key results with word embeddings"
+author: "Friedrich Geiecke"
+date: "22 March 2021"
+output: html_document
+---
+
+In this notebook, we will write our own simplified versions of some commonly used functions from packages such as e.g. `gensim` in Python. This allows to build better intuition about some key results regarding word embeddings.
+
+Loading packages:
+
+```{r}
+library("Rtsne")
+```
+
+
+### 1. Loading and processing GloVe embeddings
+
+The pre-trained GloVe embeddings can be downloaded from [here](https://nlp.stanford.edu/projects/glove/). This notebook uses the embeddings with 100 dimensions as they allow for faster computations. Yet, the higher dimensional embeddings on average yield better results. Note that some of the outcomes here will change when using embeddings of different dimensions.
+
+Using the very fast `fread` function from the `data.table` package to read in the embeddings text file and adding column names:
+
+```{r, eval = FALSE}
+embeddings = data.table::fread('glove.6B.100d.txt', data.table = FALSE,  encoding = 'UTF-8')
+colnames(embeddings) = c('word',paste('dim',1:100,sep = '_'))
+```
+
+Adding words as rownames and normalising vectors to have length 1:
+
+```{r}
+# Adding row names and deleting the word column
+rownames(embeddings) <- embeddings$word
+embeddings$word <- NULL
+
+# Now that no characters exist in the dataframe columns themselves,
+# transform to matrix
+embeddings <- as.matrix(embeddings)
+
+# Normalise the vectors to length 1
+embeddings <- embeddings / sqrt(rowSums(embeddings^2))
+```
+
+### 2. A function which returns the most similar words
+
+```{r}
+similar <- function(word, top_n = 5, embedding_matrix = embeddings) {
+  
+  # Compute all similarities
+  similarities_to_all_words <- embeddings%*%embeddings[word,]
+  
+  # Sort similarities in descending order
+  similarities_to_all_words <- similarities_to_all_words[order(-similarities_to_all_words[,1]),]
+
+  # Obtain the most similar words
+  most_similar_words <- names(similarities_to_all_words)[1:(top_n + 1)]
+  
+  # Delete the word from the search query which has a similarities of 1
+  most_similar_words <- most_similar_words[!(most_similar_words %in% word)]
+  
+  return(most_similar_words)
+  
+}
+```
+
+### 3. A function that returns the word which fits least well into a group of words
+
+```{r}
+does_not_fit <- function(words, embedding_matrix = embeddings) {
+  
+  # Obtain the vectors of all words
+  word_vectors <- embedding_matrix[words,]
+  
+  # Compute the mean of the vectors
+  mean_vector <- colSums(embedding_matrix[words,])
+  
+  # Compute similarities to the mean
+  similarities_to_mean <- word_vectors%*%mean_vector
+  
+  # Sort similarities in ascending order
+  similarities_to_mean <- similarities_to_mean[order(similarities_to_mean[,1]),]
+  
+  # Store the word which is furthest away from the mean
+  word_furthest_away_from_mean <- names(similarities_to_mean)[1]
+  
+  return(word_furthest_away_from_mean)
+  
+}
+
+```
+
+
+### 4. A function which computes analogies
+
+```{r}
+analogies <- function(a, b, c, top_n = 1, embedding_matrix = embeddings) {
+  
+  # a:b :: c:d
+  # For example, man (a) is to women (b) what king (c) is to ... (d)
+  
+  # Obtain the individual word vectors
+  vec_a <- embedding_matrix[a,]
+  vec_b <- embedding_matrix[b,]
+  vec_c <- embedding_matrix[c,]
+  
+  # Combine them into a target vector
+  target_vector <- vec_c - vec_a + vec_b
+  
+  # Compute similarities to all vectors
+  similarities_to_all_words <- embedding_matrix%*%target_vector
+  
+  # Sort similarities in descending order
+  similarities_to_all_words <- similarities_to_all_words[order(-similarities_to_all_words[,1]),]
+  
+  # Obtain the most similar words
+  most_similar_words <- names(similarities_to_all_words)[1:(top_n + 4)]
+  
+  # Delete words from the query should they be among the returned analogies
+  most_similar_words <- most_similar_words[!(most_similar_words %in% c(a,b,c))]
+  
+  # Return the top n analogies
+  print(most_similar_words[1:top_n])
+  
+}
+```
+
+
+
+### 5. Illustrations
+
+
+For a very niche term, can we still find sensible similar ones?
+
+```{r}
+similar("pterosaur")
+```
+
+Who was not a physicist?
+
+```{r}
+does_not_fit(c("einstein", "bohr", "feynman", "mozart"))
+```
+
+Making it more difficult:
+
+```{r}
+does_not_fit(c("einstein", "bohr", "feynman", "fleming"))
+```
+
+Who was not on the moon?
+
+```{r}
+does_not_fit(c("armstrong", "moon", "hesse"))
+```
+
+Who was not a writer?
+
+```{r}
+does_not_fit(c("literature", "armstrong", "hesse"))
+```
+
+
+Maybe most surprisingly of all, the model also understands a wide range analogies:
+
+```{r}
+analogies(a = "austria", b = "schnitzel", c = "italy", top_n = 5)
+```
+
+
+```{r}
+analogies(a = "einstein", b = "scientist", c = "picasso")
+```
+
+Language:
+
+Adjectives:
+
+```{r}
+analogies(a = "tall", b = "taller", c = "smart")
+```
+
+```{r}
+analogies(a = "fast", b = "faster", c = "good")
+```
+
+Adverbs:
+
+```{r}
+analogies(a = "slow", b = "slowly", c = "careful")
+```
+
+Making some reasonable mistakes:
+
+```{r}
+analogies(a = "tall", b = "tallest", c = "quick")
+```
+
+Past tense:
+
+```{r}
+analogies(a = "swim", b = "swam", c = "walk")
+```
+
+Capitals:
+
+```{r}
+analogies(a = "france", b = "paris", c = "peru")
+```
+
+```{r}
+analogies(a = "france", b = "paris", c = "cameroon")
+```
+
+Literature:
+
+```{r}
+analogies(a = "england", b = "shakespeare", c = "germany")
+```
+
+```{r}
+analogies(a = "england", b = "shakespeare", c = "spain")
+```
+
+Sports:
+
+```{r}
+analogies(a = "arsenal", b = "football", c = "lakers")
+```
+
+It knows about David and Goliath:
+
+```{r}
+analogies(a = "david", b = "goliath", c = "small")
+```
+
+
+And as a final example, it is even possible to infer that Achilles and Hector were enemies in the Iliad and then transfers this to football. The model returns (mostly) opposing football teams to Liverpool:
+
+```{r}
+analogies(a = "achilles", b = "hector", c = "liverpool", top_n = 5)
+```
+
+
+
+To conclude, note, however, that these example are of course cherry-picked. There are many analogies where these models return unreasonable results, the more so the lower the dimensionality. Nonetheless, the ability of a computer to perform such difficult tasks based on the geometry of a vector space of words is quite astonishing.
+
+
+### 6. Visualisations
+
+Lastly, let us see whether we can replicate common plots about word embeddings:
+
+```{r}
+
+# Storing some exemplary vectors
+exemplary_words <- c("one", "two", "three", "four", "five",
+                     "football", "basketball", "baseball",
+                     "inflation", "recession", "economics")
+
+exemplary_vectors <- embeddings[exemplary_words,]
+
+
+# TSNE plot
+exemplary_vectors <- normalize_input(exemplary_vectors)
+set.seed(42)
+tsne_out <- Rtsne(exemplary_vectors, dims = 2, perplexity = 3) # perplexity should be <obs/3
+tsne_plot <- tsne_out$Y
+rownames(tsne_plot) <- exemplary_words
+plot(tsne_plot, xlim = c(-110, 140))
+text(tsne_plot, labels=rownames(tsne_plot), cex= 0.7, pos = 1)
+
+```
+
+Note that while tSNE is a nice tool to obtain visual intuition about clusters in high dimensional space, it is a highly nonlinear mapping from the high dimensional space to the two dimensions in this case. Thus, we should not expect vectors such as Man:Women :: King:Queen to have an equally nice linear parallelogram structure in the 2D plot as in high dimensionaly space. Still, for this example, it gives at least a reasonable idea:
+
+```{r}
+exemplary_words <- c("man", "woman", "king", "queen")
+exemplary_vectors <- embeddings[exemplary_words,]
+exemplary_vectors <- normalize_input(exemplary_vectors)
+set.seed(42)
+tsne_out <- Rtsne(exemplary_vectors, dims = 2, perplexity = 1) # perplexity should be <obs/3
+tsne_plot <- tsne_out$Y
+rownames(tsne_plot) <- exemplary_words
+plot(tsne_plot, xlim = c(-2000, 2000), ylim = c(4500, -4500))
+text(tsne_plot, labels=rownames(tsne_plot), cex= 0.7, pos = 2)
+```
+
+For cases such as visualising directions in vector space, let us therefore try PCA which reduced dimensions linearly.
+
+```{r}
+exemplary_words <- c("germany", "berlin", "france", "paris", "spain", "madrid", "china", "beijing", "vietnam", "hanoi")
+exemplary_vectors <- embeddings[exemplary_words,]
+pca_out <- prcomp(exemplary_vectors, scale = TRUE)
+pca_plot <- pca_out$x[,1:2]
+rownames(pca_plot) <- exemplary_words
+plot(pca_plot, xlim = c(-10, 10), ylim = c(-8, 8))
+text(pca_plot, labels=rownames(pca_plot), cex= 0.7, pos = 2)
+```
+
+The capital vectors are in very similar directions from the country vectors.

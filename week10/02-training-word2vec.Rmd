@@ -1,0 +1,76 @@
+---
+title: "Training word2vec models in R"
+author: "Friedrich Geiecke"
+date: "22 March 2021"
+output: html_document
+---
+
+Loading packages:
+
+```{r}
+library("word2vec")
+library("tm")
+library("pdftools")
+```
+
+Loading the Newton book, removing new line and return codes, and deleting the first pages which have been added by Google as well as empty pages:
+
+```{r}
+principia <- pdf_text("principia.pdf")
+principia <- principia[3:length(principia)]
+principia <- str_replace_all(principia, "[\r\n]" , " ")
+principia <- principia[nchar(principia) > 0]
+```
+
+Converting to lower case, removing punctuation, numbers, excess white spaces, and leading and trailing white spaces:
+
+```{r}
+principia <- principia %>% tolower() %>% removePunctuation() %>%
+    removeNumbers() %>% stripWhitespace() %>% trimws()
+```
+
+Note that very large files - e.g. the English Wikipedia in one .txt file with one line being one article - cannot easily be kept in memory as a character vector. In this case we can e.g. read in a single line from the original file with `read_lines` from the `readr` package, process only the one line with converting to lower case etc., and then add this line to an output file on your disk with `write_lines`, and so on.
+
+The function `word2vec` can read in textual data either in form of a such file from disk (if under `x` we supply the path to the file) or as a character vector as done here:
+
+```{r}
+word2vec_model <- word2vec(x = "principia.txt", type = "skip-gram", dim = 300, window = 10)
+```
+
+For further hyper-parameter options see the [manual](https://cran.r-project.org/web/packages/word2vec/word2vec.pdf) or the original word2vec paper. There are also many online discussions regarding text processing and hyper-parameter tuning for word different embedding models.
+
+The training seems to have worked, we can obtain the matrix of word embeddings:
+
+```{r}
+embedding_matrix <- as.matrix(word2vec_model)
+head(embedding_matrix[,1:10])
+```
+
+Most similar words to "saturn":
+
+```{r}
+predict(word2vec_model, newdata = c("saturn"), type = "nearest", top_n = 5)
+```
+
+Analogies usually need a large corpus to work well. Note that many packages just exclude the original vectors form the return as these frequently show up as the most similar terms again. In contrast, the words are visible here:
+
+```{r}
+# sun is to star what earth is to .. ?
+wv <- predict(word2vec_model, newdata = c("earth", "sun", "star"), type = "embedding")
+combined_vector <- wv["earth", ] - wv["sun", ] + wv["star", ]
+predict(word2vec_model, newdata = combined_vector, type = "nearest", top_n = 5)
+```
+
+
+After training which can take a long time for large corpora, the model can be saved with `write.word2vec` and loaded with `read.word2vec`.
+
+```{r}
+write.word2vec(word2vec_model, file = "principa_model.bin")
+```
+
+Side note: This package or the `doc2vec` package also allow to compute sentence or document embeddings with doc2vec. You could train these one some dataset and e.g. compare how well they detect similar documents relatively to other methods of document embeddings that you have discussed previously in the lecture.
+
+
+References:
+
+- https://cran.r-project.org/web/packages/word2vec/word2vec.pdf
