@@ -38,7 +38,7 @@ The function `word2vec` can read in textual data either in form of a such file f
 word2vec_model <- word2vec(x = principia, type = "skip-gram", dim = 300, window = 10)
 ```
 
-For further hyper-parameter options see the [manual](https://cran.r-project.org/web/packages/word2vec/word2vec.pdf) or the original word2vec paper. There are also many online discussions regarding text processing and hyper-parameter tuning for word different embedding models.
+For further hyper-parameter options see the [manual](https://cran.r-project.org/web/packages/word2vec/word2vec.pdf) or the original word2vec paper. There are also many online discussions regarding text processing and hyper-parameter tuning for different word embedding models.
 
 The training seems to have worked, we can obtain the matrix of word embeddings:
 
