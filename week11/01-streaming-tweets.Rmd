@@ -1,0 +1,116 @@
+---
+title: "Streaming tweets"
+author: "Friedrich Geiecke"
+date: "29 March 2021"
+output: html_document
+---
+
+The goal of this series of notebooks is to present a step by step guide about how to train sentence classification models based on tweets in the spirit of papers such as https://arxiv.org/abs/1708.00524. Since we are going to consider much smaller amounts of tweets and simpler and less flexible models for this illustration, however, the outcomes cannot be competitive. Yet, using more data and flexible models would allow to considerably improve the outcomes in a research project.
+
+In this first notebook, we will use the Twitter streaming API to download tweets with certain emojis which will then be used as training data for classifier.
+
+### 1. Accessing the Twitter streaming API
+
+Loading package:
+
+```{r}
+library("rtweet")
+```
+
+When you use the API the first time, generate the token in your developer portal on the Twitter website and paste them here:
+
+```{r, eval = FALSE}
+# Storing tokens in a list
+authentication <- list(consumer_key = "",
+                       consumer_secret = "",
+                       access_token = "",
+                       access_token_secret = "")
+
+# Saving the list as .rda file
+save(cauthentication, file = "myauthentication.rda")
+```
+
+Afterwards you can delete the code chunk above and in the future only run the code chunk below if the .rda file is in the same directory. Make sure to never display your access keys in an Rmd or HTML file publicly.
+
+```{r}
+load("myauthentication.rda")
+```
+
+Next, we create a token object and lookup the user "LSEnews" to see whether the access works:
+
+```{r}
+twitter_token <- create_token(app = "enter your app name here", 
+                              consumer_key = authentication$consumer_key,
+                              consumer_secret = authentication$consumer_secret,
+                              access_token = authentication$access_token,
+                              access_secret = authentication$access_token_secret)
+
+# Test whether access works
+lookup_users("LSEnews")$screen_name
+```
+
+We are going to use the streaming API because we are interested in collecting tweets with certain emojis as they are being posted. With the rest API on the other hand, we can download limited amounts of historical tweets e.g. from specific user timelines For research projects with larger amounts of historical data, also see the very new research API option. For a detailed description on how to use both the Twitter streaming and rest API through R, see the optional tutorials in this week's repo.
+
+### 2. Main function for the streaming API in rtweet
+
+The `stream_tweets` function's key input is the argument "q". From the help file of `stream_tweets`:
+
+"There are four possible methods. (1) The default, q = "", returns a small random sample of all publicly available Twitter statuses. (2) To filter by keyword, provide a comma separated character string with the desired phrase(s) and keyword(s). (3) Track users by providing a comma separated list of user IDs or screen names. (4) Use four latitude/longitude bounding box points to stream by geo location. This must be provided via a vector of length 4, e.g., c(-125, 26, -65, 49)."
+
+Source: See help for `stream_tweets`
+
+### 3. Collecting tweets with emojis to train a classifier
+
+Our goal here is to filter only for tweets that contain certain emojis. For this we can look up unicodes of emojis e.g. on websites such as this [one](https://emojipedia.org/) or use packages such as the [follwing](https://github.com/hadley/emo). The emojis we will consider in this example are:
+
+```{r}
+approval_emojis <- "\U0001F44D,\U0001F44D\U0001F3FB,\U0001F44D\U0001F3FC,\U0001F44D\U0001F3FD,\U0001F44D\U0001F3FE,\U0001F44D\U0001F3FF,\U0001F44F,\U0001F44F\U0001F3FB,\U0001F44F\U0001F3FC,\U0001F44F\U0001F3FD,\U0001F44F\U0001F3FE,\U0001F44F\U0001F3FF"
+
+disapproval_emojis <- "\U0001F44E,\U0001F44E\U0001F3FB,\U0001F44E\U0001F3FC,\U0001F44E\U0001F3FD,\U0001F44E\U0001F3FE,\U0001F44E\U0001F3FF"
+
+cat(approval_emojis)
+cat("\n")
+cat(disapproval_emojis)
+```
+
+Hence, we trying to build a classifier that can predict approval or disapproval.
+
+For a small sample, let us e.g. run the following code for 10 seconds:
+
+```{r}
+some_tweets <- stream_tweets(q = approval_emojis, timeout = 10, parse = TRUE,
+                             file_name = "test_stream.json", language = "en")
+```
+
+If we are streaming larger samples, it is not advisable to parse the outcome of the stream into an R object as it can become very large. Instead, the file can just continuously be written to disk:
+
+```{r, eval = FALSE}
+hours_to_stream = 1/60
+stream_tweets(q = approval_emojis, timeout = 60*60*hours_to_stream, parse = FALSE,
+              file_name = "some_approval_emoji_tweets.json", language = "en")
+```
+
+Afterwards, the file `some_approval_emoji_tweets.json` can be read into a dataframe in R with `df <- parse_stream(approval_emoji_tweets_1.json)`.
+
+### 4. Obtaining a dataset to train the model
+
+Since obtaining the data takes a lot of time, I uploaded the knitted files of these knowbooks that show the main aggregate outcomes. If in the future you would like to collect tweets yourself and estimate such model, note that particularly the rarer emojis take some time to collect. The dataset used in this illustration took around:
+
+- 15 minutes to collect generic samples of tweets with q = ""
+- 5 hours to collect approval tweets with q = approval_emojis
+- 72 hours to collect disapproval tweets with with q = disapproval_emojis (these emojis are much rarer)
+
+The best practice is to spread the collection out in multiple smaller parts as otherwise tweets might all be dominated by the same current topics.
+
+To speed up the part of collecting emojis being correlated with disapproval, another option can be to add other negative emojis to the thumbs down emojis which are more common such as:
+
+```{r}
+disapproval_and_angry_emojis <- "\U0001F44E,\U0001F44E\U0001F3FB,\U0001F44E\U0001F3FC,\U0001F44E\U0001F3FD,\U0001F44E\U0001F3FE,\U0001F44E\U0001F3FF,\U0001F621,\U0001F92C,\U0001F624,\U0001F620"
+cat(disapproval_and_angry_emojis)
+```
+
+In general, the larger the sample the better, because tweets as the underlying data are very noisy. The model behind https://deepmoji.mit.edu/, used around 1.2 billion tweets. For such amounts of data, however, the only reasonable methods are deep neural networks which can store a lot of particularities of the data and also only update their parameters in batches of e.g. 64 observations each step rather than with the full data which would be computationally unfeasible.
+
+### 5. Cloud computing
+
+Rarer emojis and large datasets in general can take a long time to collect It is therefore a very convenient option to e.g. set up an R Studio server in the cloud and use it to access the API. If this is of interest to you, check out week 11 from the course MY472. All materials are on the MY472 [website](https://lse-my472.github.io/) and the videos on the course's Moodle course page.

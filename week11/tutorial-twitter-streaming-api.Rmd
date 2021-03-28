@@ -1,0 +1,191 @@
+---
+title: "Twitter Streaming API"
+author: "Pablo Barbera, Ken Benoit, Friedrich Geiecke"
+date: "26/10/2020"
+output: html_document
+---
+
+In this file we will discuss the Twitter Streaming API with the help of the `rtweet` package.
+
+Loading packages:
+
+```{r}
+library("rtweet")
+library("tidyverse")
+library("maps")
+library("stringr")
+library("maps")
+```
+
+#### Authenticating
+
+First, we need to authenticate. After your application has been approved, you can paste the consumer key, consumer secret, access token, and access token secret strings into the list below:
+
+```{r}
+authentication <- list(consumer_key = "CONSUMER_KEY",
+                 consumer_secret = "CONSUMER_SECRET",
+                 access_token = "ACCESS_TOKEN",
+                 access_token_secret = "ACCESS_TOKEN_SECRET")
+```
+
+A more convenient approach could be to store this list once after you have pasted your keys and then to reload it when running some code. Store the list once with:
+
+```{t}
+save(authentication, file = "authentication.rda")
+```
+
+To load the list containing your authentication whenever you run such a script, you can then simply add the following cell in the future (if the `authentication.rda` file is contained in the directory):
+
+```{r}
+load("authentication.rda")
+```
+
+Lastly, enter your app name into the cell below. If the cell then outputs `LSEnews` after running, we are good to go:
+
+```{r}
+# Replace the app name with your own!
+twitter_token <- create_token(app = "enter your app name here", 
+                              consumer_key = authentication$consumer_key,
+                              consumer_secret = authentication$consumer_secret,
+                              access_token = authentication$access_token,
+                              access_secret = authentication$access_token_secret)
+
+lookup_users("LSEnews")$screen_name
+```
+
+
+#### Preliminaries
+
+First, let us have a look at the `stream_tweets` function which we will use a lot. It has four options for the query:
+
+1. q = "": Sampling a small random sample of all publicly available tweets
+
+2. q = "keywords": Filtering via a search-like query (up to 400 keywords)
+
+3. q = "ids": Tracking via vector of user ids (up to 5000 user_ids)
+
+4. q = c(-125, 26, -65, 49): Location via geo-coordinates (1-360 degree location boxes)
+
+Note in particular that while the function is running, all output is written into a JSON file on your disk. This can be very helpful to avoid loosing your collected tweets should the internet connection or the script break when collecting tweets for longer durations. Unless you set parse = FALSE or specify a file name, however, this JSON file will automatically be deleted once the stream is complete and the tweets have been assigned to the R object to the left of the <- operator. If you would like to store tweets on your disk either way, set a file name manually and/or set parse = FALSE. In the parse = FALSE case, the tweets will not be assigned to an object after running (i.e. the `stream_tweets` function will not return an output), but tweets will only be written to disk. This can be helpful as for larger streams the parsing process might unnecessarily block resources. Also see the help file of `stream_tweets` which is the reference for this discussion.
+
+#### 1. Collecting a sample
+
+First, we collect a random sample of tweets for 30 seconds and store it in an R object. Check your current folder to see how a JSON file is created and then deleted once the function finished and the output was assigned to the tweets object:
+
+```{r}
+sample_tweets <- stream_tweets(q = "", timeout = 30)
+head(sample_tweets)
+head(sample_tweets$text)
+```
+
+The returned tweets have been parsed into R directly as a data frame / tibble:
+
+```{r}
+class(sample_tweets)
+sample_tweets
+```
+
+Who tweeted the most retweeted tweet, what text does it contain, and what is its retweet count?
+
+```{r}
+sample_tweets[which.max(sample_tweets$retweet_count), c("screen_name")]
+sample_tweets[which.max(sample_tweets$retweet_count), c("text")]
+max(sample_tweets$retweet_count) # if the stream duration was short, no tweet might have been retweeted!
+```
+
+What are the most popular hashtags at the moment? We will use regular expressions to extract hashtags:
+
+```{r}
+ht <- str_extract_all(sample_tweets$text, "#[A-Za-z0-9_]+")
+ht <- unlist(ht)
+head(sort(table(ht), decreasing = TRUE))
+```
+
+As the tweets have been parsed into R in a tabular format through the package, we can now write them to disk as a csv file:
+
+```{r}
+write_as_csv(sample_tweets, file_name = "df_collected_tweets.csv")
+```
+
+We could, however, also specify a JSON file name and set the parse option to false (only one of these options would be needed to obtain an output file that is not deleted, it could e.g. be named automatically by the package):
+
+```{r}
+stream_tweets(q = "", timeout = 10, parse = FALSE, file_name = "collected_tweets.json")
+```
+
+#### 2. Filtering by keyword
+
+If we specify a keyword, we can collect tweets containing it:
+
+```{r}
+keyword_tweets <- stream_tweets(q = "election", timeout = 5)
+head(keyword_tweets)
+head(keyword_tweets$text)
+```
+
+Multiple keywords that should be contained in the tweets are separated with a capitalised `AND` (to indicate that the `and` is not a term itself):
+
+```{r}
+keywords_tweets <- stream_tweets("trump AND biden", timeout = 5)
+head(keywords_tweets$text)
+```
+
+#### 3. Filtering by user ids
+
+If we wanted to collect a stream of tweets from specific users, we could specify a vector of user ids and set q = user_id_vector.
+
+```{r}
+uid_tweets <- stream_tweets(q = "25073877", timeout = 5)
+head(uid_tweets$text)
+```
+
+#### 4. Filtering by location
+
+Lastly, let us turn to collecting tweets filtered by location instead. To be able to apply this type of filter, we need to set a geographical box and collect only the tweets that are coming from that area.
+
+For example, imagine we want to collect tweets from the United States. One way to do it is to find two pairs of coordinates (longitude and latitude) that indicate the southwest corner AND the northeast corner. One important thing when using this function is to note the order it uses: It is not (lat, long), but (long, lat). In the case of the US, this would therefore be approx. (-125, 26) and (-65, 49) or in one vector c(-125, 26, -65, 49). How can you find coordinates? You can e.g. use Google Maps, and right-click on the desired location (e.g. the north-east corner of the US or a city) and select "What's here?". Just note that the coordinates on Google are given in opposite order. As a small exercise, what are the approximate coordinates of Detroit's center? Alternatively you can use the function `lookup_coords`, e.g.` lookup_coords("usa")`. If you would like to look up coordinates of e.g. cities with this functions you would need to supply a valid Google Maps API key as one of its arguments. Proceeding with the example of US tweets:
+
+```{r}
+geo_tweets <- stream_tweets(q = c(-125, 26, -65, 49), timeout = 30)
+#geo_tweets <- stream_tweets(q = lookup_coords("usa"), timeout = 30)
+```
+
+Where are these tweets from more precisely? We can use the **maps** package to visualise this. In the `map.where` function we can thereby e.g. use "state" as the first argument to obtain location of tweets at the state level or "world" to obtain location at the country level. To do this, however, we first need to add columns to our data frame that store the latitude and longitude of each tweet. The `lat_lng` function appends the data frame with latitude and longitude variables using available geo-location information in tweet data returned from the API. For in detail information of what types of location data can be attached to geo-tagged tweets, see e.g. this [link](https://developer.twitter.com/en/docs/twitter-api/v1/data-dictionary/overview/geo-objects)
+
+```{r}
+
+# Using the lat_lng function to add two columns to the data frame called lat and lng
+geo_tweets <- lat_lng(geo_tweets)
+
+# Counting how many tweets came from different US states
+states <- map.where(database = "state", x = geo_tweets$lng, y = geo_tweets$lat)
+head(sort(table(states), decreasing = TRUE))
+```
+
+We can also create a map visualising the exact locations of the tweets within states:
+
+```{r}
+
+## First create a data frame with the map data 
+map.data <- map_data("state")
+
+## And we use ggplot2 to draw the map:
+# Map base
+ggplot(map.data) + geom_map(aes(map_id = region), map = map.data, fill = "grey90", 
+    color = "grey50", size = 0.25) + expand_limits(x = map.data$long, y = map.data$lat) + 
+    # Limits for x and y axis
+    scale_x_continuous(limits=c(-125, -66)) + scale_y_continuous(limits = c(25, 50)) +
+    # Adding the dot for each tweet and specifying dot size, transparency, and colour
+    geom_point(data = geo_tweets, aes(x = lng, y = lat), size = 2,
+               alpha = 1/5, color = "red") +
+    # Removing unnecessary graph elements
+    theme(axis.line = element_blank(), 
+    	axis.text = element_blank(), 
+    	axis.ticks = element_blank(), 
+        axis.title = element_blank(), 
+        panel.background = element_blank(), 
+        panel.border = element_blank(), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        plot.background = element_blank()) 
+```

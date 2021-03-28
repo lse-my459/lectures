@@ -1,0 +1,110 @@
+---
+title: "Twitter Rest API"
+author: "Pablo Barbera, Ken Benoit, Friedrich Geiecke"
+date: "26/10/2020"
+output: html_document
+---
+
+In this file, we will look at static Twitter data, either recent tweets or user-level information. This type of data can be retrieved with Twitter's REST API. We will use the `rtweet` package here.
+
+Loading packages:
+
+```{r}
+library("rtweet")
+library("stringr")
+library("tidyverse")
+```
+
+First we need to authenticate. After your application has been approved, you can paste the consumer key, consumer secret, access token, and access token secret strings into the list below:
+
+```{r}
+authentication <- list(consumer_key = "CONSUMER_KEY",
+                 consumer_secret = "CONSUMER_SECRET",
+                 access_token = "ACCESS_TOKEN",
+                 access_token_secret = "ACCESS_TOKEN_SECRET")
+```
+
+Lastly, enter your app name into the cell below. If the cell then outputs `LSEnews` after running, we are good to go:
+
+```{r}
+# Replace the app name with your own!
+twitter_token <- create_token(app = "enter your app name here", 
+                              consumer_key = authentication$consumer_key,
+                              consumer_secret = authentication$consumer_secret,
+                              access_token = authentication$access_token,
+                              access_secret = authentication$access_token_secret)
+
+lookup_users("LSEnews")$screen_name
+```
+
+### Searching recent tweets
+
+It is possible to download recent tweets, but only up those less than 7 days old, and in some cases not all of them.
+
+The following code will get the last 1,000 tweets mentioning "brexit" and "election":
+
+```{r}
+tweets <- search_tweets("brexit AND election", n = 1000)
+head(tweets)
+```
+
+What are the most popular hashtags?
+
+```{r}
+
+ht <- str_extract_all(tweets$text, "#[A-Za-z0-9_]+")
+ht <- unlist(ht)
+head(sort(table(ht), decreasing = TRUE))
+```
+
+You can check the documentation about the options for string search [here](https://dev.twitter.com/rest/public/search).
+
+### Extracting users' profile information
+
+This is how you would extract information from user profiles:
+
+```{r}
+users <- lookup_users(c("realDonaldTrump", "POTUS", "VP", "FLOTUS", "BarackObama"))
+users
+```
+
+Which of these has the most followers?
+
+```{r}
+users %>% select(screen_name, followers_count) %>% arrange(desc(followers_count))
+```
+
+### Downloading recent tweets from a specific user
+
+Download recent tweets from a specific account (the maximum number of most recent tweets that can be freely downloaded per account is ~3200):
+
+```{r}
+tweets <- get_timeline("realDonaldTrump", n = 1000)
+```
+
+What are the most common hashtags used?
+
+```{r}
+ht <- str_extract_all(tweets$text, "#[A-Za-z0-9_]+")
+ht <- unlist(ht)
+head(sort(table(ht), decreasing = TRUE))
+```
+
+### Other types of data
+
+The REST API also offers a long list of other endpoints that could be of use at some point, depending on your research interests. For example, if you know the ID of the tweets, you can download them directly from the API. This is useful because tweets cannot be redistributed as part of the replication materials of a published paper, but the list of tweet IDs can sometimes be shared. For example, a recent tweet of Barack Obama:
+
+```{r}
+# Downloading tweets when you know the ID
+tw <- lookup_tweets(1320477828626948096)
+tw$text
+```
+
+Furthermore, lists of Twitter users, compiled by other users, can also be accessed through the API. For example, this obtains a list of 564 Twitter accounts of US members of congress:
+
+```{r}
+# Download user information from a list (words in the list name are separated
+# by a hyphen when using it as input into the slug variable)
+congress_members <- lists_members(slug = "members-of-congress", owner_user = "cspan")
+head(congress_members)
+```
