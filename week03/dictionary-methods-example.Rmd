@@ -19,13 +19,13 @@ We will use the positive and negative categories in the augmented General Inquir
 Note that first you will need to install the `quanteda.dictionaries` package from GitHub
 
 ```{r, eval=FALSE}
-devtools::install_github("kbenoit/quanteda.dictionaries")
+devtools::install_github("quanteda/quanteda.sentiment")
 ```
 
 First, we load the dictionary object. Note that we can apply the dictionary object directly (as we will see later), but for now let's learn how to do this if we had a list of positive and negative words on a different file.
 
 ```{r}
-library(quanteda.dictionaries)
+library(quanteda.sentiment)
 data(data_dictionary_geninqposneg)
 
 pos.words <- data_dictionary_geninqposneg[['positive']]
@@ -51,7 +51,9 @@ sent_dictionary <- dictionary(list(positive = pos.words,
 And now we apply it to the corpus in order to count the number of words that appear in each category
 
 ```{r}
-sent <- dfm(twcorpus, dictionary = sent_dictionary)
+toks <- tokens(twcorpus)
+dfm <- dfm(toks)
+sent <- dfm_lookup(dfm, sent_dictionary)
 ```
 
 We can then extract the score and add it to the data frame as a new variable
@@ -95,7 +97,8 @@ pos.words <- pos.words[-which(pos.words=="great")]
 
 sent_dictionary <- dictionary(list(positive = pos.words,
                           negative = neg.words))
-sent <- dfm(twcorpus, dictionary = sent_dictionary)
+toks <- tokens(twcorpus)
+sent <- dfm(toks, dictionary = sent_dictionary)
 tweets$score <- as.numeric(sent[,1]) - as.numeric(sent[,2])
 
 for (cand in candidates){
@@ -110,7 +113,9 @@ How would we normalize by text length? (Maybe not necessary here given that twee
 
 ```{r}
 # collapse by account into 4 documents
-twdfm <- dfm(twcorpus, groups = "screen_name")
+toks <- tokens(twcorpus)
+twdfm <- dfm(toks)
+twdfm <- dfm_group(twdfm, groups = screen_name)
 twdfm
 
 # turn word counts into proportions
@@ -136,7 +141,9 @@ data_dictionary_MFD$care.virtue[1:10]
 
 # applying dictionary
 # 1) collapse by account
-twdfm <- dfm(twcorpus, groups = "screen_name")
+toks <- tokens(twcorpus)
+twdfm <- dfm(toks)
+twdfm <- dfm_group(twdfm, groups = screen_name)
 # 2) turn words into proportions
 twdfm <- dfm_weight(twdfm, scheme="prop")
 # 3) apply dictionary
@@ -157,7 +164,11 @@ dfm_sort(moral[,'authority.virtue']*100, margin='documents')
 _Keyness_ is a measure of to what extent some features are specific to a (group of) document in comparison to the rest of the corpus, taking into account that some features may be too rare.
 
 ```{r}
-twdfm <- dfm(twcorpus, groups=c("screen_name"), verbose=TRUE)
+library(quanteda.textplots)
+library(quanteda.textstats)
+toks <- tokens(twcorpus)
+twdfm <- dfm(toks)
+twdfm <- dfm_group(twdfm, groups=c(screen_name))
 
 # Donald Trump
 head(textstat_keyness(twdfm, target="realDonaldTrump",
