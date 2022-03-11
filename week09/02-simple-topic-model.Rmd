@@ -1,7 +1,7 @@
 ---
 title: "A simple topic model"
 author: "Friedrich Geiecke"
-date: "15 March 2021"
+date: "14 March 2022"
 output: html_document
 ---
 
@@ -9,6 +9,7 @@ Loading packages:
 
 ```{r}
 #install.packages("stm")
+#install.packages("wordcloud")
 
 library("pdftools")
 library("quanteda")
@@ -49,7 +50,7 @@ In this first example, we will estimate a very simple model with only 3 topics. 
 ```{r}
 ctmodel <- stm(stm_input$documents, stm_input$vocab, K = 3,
                data = stm_input$meta, verbose = FALSE,
-               init.type = c("Spectral")) 
+               init.type = c("Spectral"), seed = 123) 
 ```
 
 Top words in all topics:
@@ -87,16 +88,16 @@ What can we learn about the structure of the book with this "automated reading"?
 ```{r}
 
 plot_data <- data.frame(Page = 1:nrow(theta))
-plot_data$Astronomy <- theta[,1]
-plot_data$Maths <- theta[,2]
-plot_data$Mechanics <- theta[,3]
+plot_data$Maths <- theta[,1]
+plot_data$Mechanics <- theta[,2]
+plot_data$Astronomy <- theta[,3]
 
-plot_data[,c("Astronomy", "Maths", "Mechanics")] <-
-  rollmean(plot_data[,c("Astronomy", "Maths", "Mechanics")], 10,
+plot_data[,c("Maths", "Mechanics", "Astronomy")] <-
+  rollmean(plot_data[,c("Maths", "Mechanics", "Astronomy")], 10,
            align = "right", na.pad = TRUE)
 
 plot_data <- pivot_longer(plot_data,
-                          cols = c("Astronomy", "Maths", "Mechanics"),
+                          cols = c("Maths", "Mechanics", "Astronomy"),
                           names_to = "Topic", values_to = "Shares")
 plot_data <- plot_data %>% drop_na()
 
@@ -116,4 +117,4 @@ topic_correlations <- topicCorr(ctmodel)
 topic_correlations
 ```
 
-Topics 1 and 3 are less negatively correlated, so it seems that mechanics terms such as "force" and astronomy terms such as "planets" appear together relatively more often. If pages were longer and the number of topics larger, topics could be positively correlated.
+Topics 2 and 3 are less negatively correlated than e.g. 1 and 3, so it seems that mechanics terms such as "force" and astronomy terms such as "planets" appear together relatively more often. If pages were longer and the number of topics larger, topics could be positively correlated.

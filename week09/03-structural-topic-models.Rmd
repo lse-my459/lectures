@@ -1,7 +1,7 @@
 ---
 title: "Structural topic models"
 author: "Friedrich Geiecke"
-date: "15 March 2021"
+date: "14 March 2022"
 output: html_document
 ---
 
@@ -171,6 +171,7 @@ axis(1, at = as.numeric(monthseq) - min(as.numeric(monthseq)),
 Lastly, let us illustrate a very helpful interactive tool called LDAvis which allows to explore topic models:
 
 ```{r, eval = FALSE}
+#install.packages("LDAvis")
 toLDAvis(stmodel, docs = stm_input$documents)
 ```
 
