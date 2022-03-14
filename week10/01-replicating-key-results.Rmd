@@ -16,7 +16,7 @@ library("Rtsne")
 
 ### 1. Loading and processing GloVe embeddings
 
-The pre-trained GloVe embeddings can be downloaded from [here](https://nlp.stanford.edu/projects/glove/). This notebook uses the embeddings with 100 dimensions as they allow for faster computations. Yet, the higher dimensional embeddings on average yield better results. Note that some of the outcomes here will change when using embeddings of different dimensions.
+The pre-trained GloVe embeddings can be downloaded from [here](https://nlp.stanford.edu/projects/glove/). This notebook uses the `Wikipedia 2014 + Gigaword 5` embeddings with 100 dimensions as they allow for faster computations. Yet, the higher dimensional embeddings on average yield better results. Note that some of the outcomes here will change when using embeddings based on different texts or with different dimensions.
 
 Using the very fast `fread` function from the `data.table` package to read in the embeddings text file and adding column names:
 

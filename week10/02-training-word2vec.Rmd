@@ -35,6 +35,8 @@ Note that very large files - e.g. the English Wikipedia in one .txt file with on
 The function `word2vec` can read in textual data either in form of a such file from disk (if under `x` we supply the path to the file) or as a character vector as done here:
 
 ```{r}
+# Note that even with setting a seed, the subsequent outcomes will be slightly
+# different in different runs here
 word2vec_model <- word2vec(x = principia, type = "skip-gram", dim = 300, window = 10)
 ```
 
@@ -53,7 +55,7 @@ Most similar words to "saturn":
 predict(word2vec_model, newdata = c("saturn"), type = "nearest", top_n = 5)
 ```
 
-Analogies usually need a large corpus to work well. Note that many packages just exclude the original vectors form the return as these frequently show up as the most similar terms again. In contrast, the words are visible here:
+Analogies usually need a large corpus to work well. Note that many packages just exclude the original vectors form the return as these frequently show up as the most similar terms again. In contrast, the words can be visible here:
 
 ```{r}
 # sun is to star what earth is to .. ?
