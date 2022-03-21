@@ -1,26 +1,39 @@
 ---
 title: "Recurrent network with GRU layer and pretrained GloVe embeddings"
 author: "Friedrich Geiecke"
-date: "29 March 2021"
+date: "28 March 2022"
 output: html_document
 ---
 
-This notebook serves as an outlook to illustrate that deep learning based sentiment classification can relatively easily be implemented in R. We will use Tensorflow/Keras and slightly modify the code from this sample https://keras.rstudio.com/articles/examples/pretrained_word_embeddings.html such that it can solve our problem. This model will use pretrained GloVe word embeddings for each word in the input sentence and thereby also connect the topic to our discussion of word embeddings last week.
+--------------------------------------------------------------------------------
+
+#### Preliminary remarks
+
+To install `keras` and run the notebooks from this week:
+
+1. Run `install.packages("keras")`
+2. Load the package with `library("keras")`
+3. Then run the function `install_keras()` in the R-console
+
+Afterwards the code in this notebook should run properly.
+
+For more information on `tensorflow` (the basis of `keras`) see: https://tensorflow.rstudio.com/installation/
+
+--------------------------------------------------------------------------------
+
+This notebook serves as an outlook to illustrate that deep learning based sentiment classification can relatively easily be implemented in R. We will use TensorFlow/Keras and slightly modify the code from this sample https://keras.rstudio.com/articles/examples/pretrained_word_embeddings.html such that it can solve our problem. This model will use pretrained GloVe word embeddings for each word in the input sentence and thereby also connect the topic to our discussion of word embeddings last week.
 
 A great repo with many simple Keras R code samples for deep learning (and sentiment classification) models can be found here https://github.com/rstudio/keras/tree/master/vignettes/examples (also the one on which this notebook is built).
 
-
 Loading packages:
 
-To install Tensorflow for R, see the description here: https://tensorflow.rstudio.com/installation/
-
 ```{r}
-library("tensorflow")
 library("keras")
+library("tensorflow")
 library("tidyverse")
 library("tm")
 
-# Keras specific pseudo random number seed
+# TensorFlow/Keras specific pseudo random number seed
 set_random_seed(24)
 ```
 

@@ -1,7 +1,7 @@
 ---
 title: "Twitter Rest API"
 author: "Pablo Barbera, Ken Benoit, Friedrich Geiecke"
-date: "26/10/2020"
+date: "25/10/2021"
 output: html_document
 ---
 
@@ -24,7 +24,19 @@ authentication <- list(consumer_key = "CONSUMER_KEY",
                  access_token_secret = "ACCESS_TOKEN_SECRET")
 ```
 
-Lastly, enter your app name into the cell below. If the cell then outputs `LSEnews` after running, we are good to go:
+A more convenient approach, which importantly does not depict your individual tokens, can be to store this list once after you have pasted your keys and then to reload it when running some code. Store the list once with:
+
+```{r}
+save(authentication, file = "myauthentication.rda")
+```
+
+To load the list containing your authentication whenever you run such a script, you can then simply add the following cell in the future (if the `myauthentication.rda` file is contained in the directory):
+
+```{r}
+load("myauthentication.rda")
+```
+
+Lastly, if the cell below outputs `LSEnews` after running, we are good to go:
 
 ```{r}
 # Replace the app name with your own!
@@ -41,17 +53,16 @@ lookup_users("LSEnews")$screen_name
 
 It is possible to download recent tweets, but only up those less than 7 days old, and in some cases not all of them.
 
-The following code will get the last 1,000 tweets mentioning "brexit" and "election":
+The following code will get the last 1,000 tweets mentioning "brexit" and "fuel":
 
 ```{r}
-tweets <- search_tweets("brexit AND election", n = 1000)
+tweets <- search_tweets("brexit AND fuel", n = 1000)
 head(tweets)
 ```
 
 What are the most popular hashtags?
 
 ```{r}
-
 ht <- str_extract_all(tweets$text, "#[A-Za-z0-9_]+")
 ht <- unlist(ht)
 head(sort(table(ht), decreasing = TRUE))
@@ -64,7 +75,7 @@ You can check the documentation about the options for string search [here](https
 This is how you would extract information from user profiles:
 
 ```{r}
-users <- lookup_users(c("realDonaldTrump", "POTUS", "VP", "FLOTUS", "BarackObama"))
+users <- lookup_users(c("JoeBiden", "POTUS", "VP", "FLOTUS", "BarackObama"))
 users
 ```
 
@@ -79,7 +90,7 @@ users %>% select(screen_name, followers_count) %>% arrange(desc(followers_count)
 Download recent tweets from a specific account (the maximum number of most recent tweets that can be freely downloaded per account is ~3200):
 
 ```{r}
-tweets <- get_timeline("realDonaldTrump", n = 1000)
+tweets <- get_timeline("JoeBiden", n = 1000)
 ```
 
 What are the most common hashtags used?
@@ -100,7 +111,7 @@ tw <- lookup_tweets(1320477828626948096)
 tw$text
 ```
 
-Furthermore, lists of Twitter users, compiled by other users, can also be accessed through the API. For example, this obtains a list of 564 Twitter accounts of US members of congress:
+Furthermore, lists of Twitter users, compiled by other users, can also be accessed through the API. For example, this obtains a list of 550 Twitter accounts of US members of congress:
 
 ```{r}
 # Download user information from a list (words in the list name are separated

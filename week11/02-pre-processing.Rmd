@@ -1,7 +1,7 @@
 ---
 title: "Pre-processing tweets"
 author: "Friedrich Geiecke"
-date: "29 March 2021"
+date: "28 March 2022"
 output: html_document
 ---
 
@@ -72,9 +72,10 @@ load_and_concatenate_tweets <- function(file_names) {
 }
 ```
 
-Loading all files (these are files I have downloaded via the streaming API before, change accordingly for your application). For large files, this will take considerable time. Note: If an error occurs, we will need to supply some user input in the console.
+Loading all files (these are files I have downloaded via the streaming API before, change accordingly for your application). For large files, this will take considerable time. Note: If an error occurs, we will need to supply some user input in the console which is why this cell cannot be knit.
 
 ```{r, eval = FALSE}
+# When replicating, change these file names according to what you downloaded with the API
 all_file_names <- c("disapproval_emoji_tweets_1.json",
                     "disapproval_emoji_tweets_2.json",
                     "disapproval_emoji_tweets_3.json",
@@ -89,6 +90,7 @@ df_raw <- load_and_concatenate_tweets(file_names = all_file_names)
 Observations to start with:
 
 ```{r}
+#df_raw <- read.csv("df_raw.csv") # saved previously when knitting
 nrow(df_raw)
 ```
 

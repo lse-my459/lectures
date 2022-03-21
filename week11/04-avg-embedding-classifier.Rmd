@@ -1,7 +1,7 @@
 ---
 title: "LASSO classifier based on average word embeddings"
 author: "Friedrich Geiecke"
-date: "29 March 2021"
+date: "28 March 2022"
 output: html_document
 ---
 
@@ -102,7 +102,7 @@ test_y <- factor(df[-training_indices, "label"])
 Training a LASSO classifier (this also runs a while):
 
 ```{r}
-registerDoMC(cores=8)
+registerDoMC()
 embedding_lasso_model <- cv.glmnet(training_X, training_y, 
     family="multinomial", alpha=1, nfolds=5, parallel=TRUE, intercept=TRUE, standardize = TRUE)
 ```
@@ -119,9 +119,5 @@ sum(test_y_hat == test_y)/length(test_y)
 # Confusion matrix
 table(test_y_hat, test_y)
 ```
-
-
-
-
 
 

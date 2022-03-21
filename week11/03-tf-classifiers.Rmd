@@ -1,7 +1,7 @@
 ---
 title: "LASSO and random forest classifiers based on term frequencies"
 author: "Friedrich Geiecke"
-date: "29 March 2021"
+date: "28 March 2022"
 output: html_document
 ---
 
@@ -92,7 +92,7 @@ Random forests are very robust classifiers also for basic text classification. T
 
 #### 3.1 Training
 
-Not that for large datasets, this can take considerable time:
+Note that for large datasets, this can take considerable time:
 
 ```{r}
 rf_model <- ranger(x = training_X, y = training_y, importance = "impurity")
@@ -252,7 +252,7 @@ cat(c("\U0001F621", "\U0001F92C", "\U0001F624", "\U0001F620"))
 
 vs. a random sample of other texts.
 
-This could then e.g. be used to aide the detection of toxic content and potentially moderate it more effectively.
+This could then e.g. be used to aide the detection of aggressive content and potentially moderate it more effectively.
 
 
 
