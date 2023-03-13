@@ -1,0 +1,107 @@
+---
+title: "Topic models"
+author: Pablo Barbera
+output: html_document
+---
+
+## Topic Modeling: LDA
+
+While supervised learning is used when we know the categories we want to produce, unsupervised learning (including topic modeling) is used when we do not know the categories. In topic modeling, documents are not assumed to belong to one topic or category, but simultaneously belong to several topics. The topic distributions also vary over documents. 
+
+The workhorse function for the topic model is `LDA`, which stands for Latent Dirichlet Allocation, the technical name for this particular kind of model. 
+
+We will now use a dataset that contains the lead paragraph of around 5,000 articles about the economy published in the New York Times between 1980 and 2014. As before, we will preprocess the text using the standard set of techniques.
+
+The number of topics in a topic model is somewhat arbitrary, so you need to play with the number of topics to see if you get anything more meaningful. We start here with 30 topics.
+
+```{r message = FALSE}
+library(topicmodels)
+# reading data and preparing corpus object
+nyt <- read.csv("nytimes.csv", stringsAsFactors = FALSE)
+library(quanteda)
+nytcorpus <- corpus(nyt$lead_paragraph)
+toks <- tokens(nytcorpus,
+               remove_punct=TRUE, remove_numbers=TRUE)
+nytdfm <- dfm(toks, verbose=TRUE)
+nytdfm <- dfm_remove(nytdfm, stopwords("english"))
+cdfm <- dfm_trim(nytdfm, min_docfreq = 2)
+
+# estimate LDA with K topics
+K <- 30
+lda <- LDA(cdfm, k = K, method = "Gibbs", 
+                control = list(verbose=25L, seed = 123, burnin = 100, iter = 500))
+```
+
+We can use `get_terms` to the top `n` terms from the topic model, and `get_topics` to predict the top `k` topic for each document. This will help us interpret the results of the model.
+
+```{r}
+terms <- get_terms(lda, 15)
+terms[,1]
+topics <- get_topics(lda, 1)
+head(topics)
+```
+
+Let's take a closer look at some of these topics. To help us interpret the output, we can look at the words associated with each topic and take a random sample of documents highly associated with each topic.
+
+```{r}
+# Topic 2
+paste(terms[,2], collapse=", ")
+sample(nyt$lead_paragraph[topics==2], 1)
+# Topic 3
+paste(terms[,3], collapse=", ")
+sample(nyt$lead_paragraph[topics==3], 1)
+# Topic 7
+paste(terms[,7], collapse=", ")
+sample(nyt$lead_paragraph[topics==7], 1)
+# Topic 12
+paste(terms[,12], collapse=", ")
+sample(nyt$lead_paragraph[topics==12], 1)
+```
+
+You will that often some topics do not make much sense. They just capture the remaining cluster of words, and often correspond to stopwords. For example:
+
+```{r}
+# Topic 4
+paste(terms[,4], collapse=", ")
+sample(nyt$lead_paragraph[topics==4], 1)
+# Topic 14
+paste(terms[,14], collapse=", ")
+sample(nyt$lead_paragraph[topics==14], 1)
+```
+
+In the case of date with timestamps, looking at the evolution of certain topics over time can also help interpret their meaning. Let's look for example at Topic 2, which appears to be related to the stock market.
+
+```{r}
+# Topic 2
+paste(terms[,2], collapse=", ")
+sample(nyt$lead_paragraph[topics==2], 1)
+# add predicted topic to dataset
+nyt$pred_topic <- topics
+nyt$year <- substr(nyt$datetime, 1, 4) # extract year
+ # frequency table with articles about stock market, per year
+tab <- table(nyt$year[nyt$pred_topic==2])
+plot(tab)
+```
+
+But we can actually do better than this. LDA is a probabilistic model, which means that for each document, it actually computes a distribution over topics. In other words, each document is considered to be __about a mixture of topics__. 
+
+This information is included in the matrix `gamma` in the LDA object (`theta` in the notation we used for the slides). For example, article 1 is 9% about topic 10, 7% about topic 14, 5% about topic 26, and then less than 5% for each of the rest.
+
+```{r}
+round(lda@gamma[1,], 2)
+```
+
+So we can actually take the information in the matrix and aggregate it to compute the average probability that an article each year is about a particular topic. Let's now choose Topic 15, which appears to be related to the financial crisis.
+
+```{r}
+# Topic 15
+paste(terms[,15], collapse=", ")
+# add probability to df
+nyt$prob_topic <- lda@gamma[,15]
+# now aggregate at the year level
+agg <- aggregate(nyt$prob_topic, by=list(year=nyt$year), FUN=mean)
+# and plot it
+plot(agg$year, agg$x, type="l", xlab="Year", ylab="Avg. prob. of article about topic 15",
+     main="Estimated proportion of articles about the financial crisis")
+
+```
