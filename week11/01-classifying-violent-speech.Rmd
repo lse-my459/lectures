@@ -1,0 +1,136 @@
+---
+title: "Classifying Violent Speech"
+author: "Blake Miller"
+date: "27 March 2023"
+output: html_document
+---
+
+
+## Classifying Violent Speech
+
+The following data come from a research project of mine that involves identifying violent speech in the comments of news articles. As you can imagine, some of the comments in this dataset are disturbing. As I have stressed when we've discussed other difficult subjects in class, please do take care when working with these data. Many of the comments here are racist, sexist, islamophobic, homophobic, etc.
+
+In this dataset, we aim to classify whether a comment is violent. By violent, we mean the following:
+
+- Does the text mention or imply support for or a desire to use physical violence against individuals and/or groups or the confiscation/destruction of property?
+- Is the violence represented in the text credible? For example, "I will kill you" (credible) vs. "I could just about kill you if you show up late again" (not credible)
+
+Let's look at the dataset.
+
+```{r}
+download.file('https://github.com/lse-my474/pset_data/raw/main/hate_speech.csv', 'hate_speech.csv')
+
+vio_data <- read.csv('hate_speech.csv')
+nrow(vio_data)
+length(unique(vio_data$article_id))
+names(vio_data)
+```
+
+The data consist of 27207 comments from 16 news articles. The data have the following columns:
+
+- `id`: the id of the comment
+- `article_id`: the id of the article
+- `raw_message`: the raw text of the comment
+- `ATT_CODE`: code for personal attack (yes=1, no=0)
+- `GRO_CODE`: code for mention of a group (yes=1, no=0)
+- `VIO_CODE`: code for violence (yes=1, no=0)
+
+1571 of these comments are labeled and 25636 are unlabeled. These labeled comments have been randomly sampled from the population of comments on these articles.
+
+```{r}
+labeled <- vio_data[!is.na(vio_data$VIO_CODE),]
+nrow(labeled)
+
+unlabeled <- vio_data[is.na(vio_data$VIO_CODE),]
+nrow(unlabeled)
+```
+
+Let's train a lasso classifier on these labeled comments to predict if a comment is violent (outcome `VIO_CODE`. After, we'll see how to query new documents to label using active learning and uncertainty sampling. This should give you the tools to use active learning to label your data, though unfortunately, this process takes a good amount of time and we can't cover the whole process in class. 
+
+```{r}
+library(quanteda)
+
+# Load in data as a quanteda corpus
+corpus <- corpus(vio_data, text_field = 'raw_message')
+
+# Create a matrix of word counts
+toks <- tokens(corpus)
+toks <- tokens_remove(toks, stopwords('en')) # remove common terms (stopwords)
+dfm <- dfm(toks)
+dfm <- dfm_trim(dfm, min_docfreq = 2) # removing rare terms
+dfm
+
+# Separate labeled documents from unlabeled documents 
+unlabeled <- dfm_subset(dfm, is.na(vio_data$VIO_CODE))
+labeled <- dfm_subset(dfm, !is.na(vio_data$VIO_CODE))
+
+# Split into train and test set to estimate generalization error
+tr <- sample(nrow(labeled), floor(nrow(labeled) * 0.8))
+label <- factor(labeled$VIO_CODE, levels=c(1,0))
+```
+
+Our first step is to train the classifier, selecting lambda using cross-validation. We'll start with a lasso regression:
+
+```{r}
+library(glmnet)
+require(doMC)
+
+registerDoMC(cores=3) #functions for parallel execution of R code on machines with multiple cores or processors
+lasso <- cv.glmnet(labeled[tr,], label[tr], 
+	family="binomial", alpha=1, nfolds=5, parallel=TRUE,
+	type.measure="auc")
+
+plot(lasso)
+```
+
+We can now compute the performance metrics on the test set.
+
+```{r}
+## function to compute accuracy
+accuracy <- function(ypred, y){
+	tab <- table(ypred, y)
+	return(sum(diag(tab))/sum(tab))
+}
+# function to compute precision
+precision <- function(ypred, y){
+	tab <- table(ypred, y)
+	return((tab[2,2])/(tab[2,1]+tab[2,2]))
+}
+# function to compute recall
+recall <- function(ypred, y){
+	tab <- table(ypred, y)
+	return(tab[2,2]/(tab[1,2]+tab[2,2]))
+}
+# computing predicted values
+preds <- predict(lasso, labeled[-tr,], type="class")
+# confusion matrix
+table(preds, label[-tr])
+# performance metrics
+accuracy(preds, label[-tr])
+# for specific rows
+precision(preds==1, label[-tr]==1)
+recall(preds==1, label[-tr]==1)
+precision(preds==0, label[-tr]==0)
+recall(preds==0, label[-tr]==0)
+```
+
+Not so great... violence in comments is uncommon, so this is an **imbalanced classification problem**. This means if we are randomly sampling comments, there is only a small chance we will come across violent comments. Let's be precise; we have an unbiased estimate of the proportion of violent comments in our dataset since we have been randomly sampling comments to label up until now.
+
+```{r}
+bal <- table(labeled$VIO_CODE)
+bal[2]/sum(bal)
+```
+
+It appears violent comments appear in one out of ten comments, a high class imbalance. We could likely benefit from active learning as we label new observations. Let's find the comments that the classifier is most uncertain of. We do so by finding the unlabeled observations closest to the decision boundary. We do this using `predict()` on the unlabeled observations and obtaining the distance from a predicted probability of .5 (i.e., decision boundary). Since we don't really care about which side of .5 our unlabeled observations fall---we just care about how close observations are to it---we take the absolute value of this distance using `abs()`.
+
+```{r}
+pred <- predict(lasso, unlabeled, type="response") # Predicted probabilities
+sorted <- sort(abs(pred - .5), decreasing=FALSE, index.return=TRUE)
+pred[head(sorted$ix)] # Predicted probabilities closest to .5
+head(sorted$x) # Distance from .5
+to_label <- unlabeled[sorted$ix[1:10],]
+indexes <- as.numeric(rownames(to_label))
+as.character(corpus[rownames(to_label),])
+```
+
+5/10 of these comments indeed are violent. I've commented them out since they are offensive, but if you would like to try this on your own, make sure you are aware that some of these comments are extremely unpleasant. We ended up retrieving way more than the expected 1/10 violent comments. By labeling documents closest to the decision boundary, we can achieve better class balance in our training data, improving the performance of our model more quickly.

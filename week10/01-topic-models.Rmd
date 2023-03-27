@@ -38,6 +38,7 @@ We can use `get_terms` to the top `n` terms from the topic model, and `get_topic
 terms <- get_terms(lda, 15)
 terms[,1]
 topics <- get_topics(lda, 1)
+?get_topics
 head(topics)
 ```
 
