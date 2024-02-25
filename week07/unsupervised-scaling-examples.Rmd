@@ -132,7 +132,7 @@ What happens if we add some irrelevant text?
 ```{r}
 
 ## demonstrate the effects of irrelevant text
-newText <- texts(data_corpus_irishbudget2010)
+newText <- data_corpus_irishbudget2010 %>% as.character()
 # some really irrelevant text, from Justin Bieber's Wikipedia page
 junkText <- "   
 Justin Drew Bieber (born March 1, 1994)[4][5] is a Canadian singer and songwriter. Bieber's current manager, Scooter Braun first discovered him through his YouTube videos in 2007.[6] Braun was impressed with the videos, and contacted Bieber's mother Pattie about wanting to work with him. After convincing Bieber's mother, Braun arranged for Bieber to meet with Usher in Atlanta, Georgia. Bieber was signed to RBMG,[7] and then to an Island Records recording contract offered by record executive, L.A. Reid.[3][8]\n\n
@@ -140,7 +140,7 @@ Bieber released his debut EP, My World, in November 2009. It was certified plati
 Bieber has received numerous industry awards, including both Artist of the Year Awards, at the 2010 American Music Awards, and the 2012 American Music Awards, and was nominated for Best New Artist and Best Pop Vocal Album at the 53rd Grammy Awards. With a global fan base, termed as \"Beliebers\", and over 40 million followers on Twitter, he was named by Forbes magazine in 2012 as the third-most powerful celebrity in the world.[10] However Bieber fell to number 9 on the list in 2013.
 "
 newText[11] <- paste(newText[11], junkText)
-ieDfm2 <- dfm(newText)
+ieDfm2 <- newText %>% tokens() %>% dfm()
 # fit wordfish again
 wf2 <- textmodel_wordfish(ieDfm2, dir=c(2,1))
 # plot it and compare Ryan
