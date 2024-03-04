@@ -7,6 +7,8 @@ output: html_document
 
 ```{r}
 require(quanteda)
+require(quanteda.textstats)
+
 ```
 
 `textstat_simil()` computes matrices of distances and similarities between documents. It is useful for comparing the feature use across different documents.
@@ -39,7 +41,7 @@ Note that these two metrics measure the opposite thing: Euclidean distance measu
 Edit distance:
 
 ```{r}
-textstat_simil(doc_dfm, method="hamman")
+textstat_simil(doc_dfm, method="hamann")
 ```
 
 
@@ -68,7 +70,7 @@ simil <- simil[order(simil, decreasing=TRUE),]
 head(simil, n=5)
 
 # and we can read their plots
-movie$plot[movie$name %in% names(simil)[2:5]]
+movie$plot[movie$name %in% names(simil)[2:6]]
 
 ```
 
@@ -78,29 +80,29 @@ First we will explore an application of k-means clustering to the plots of recen
 
 ```{r}
 recent <- corpus_subset(mcorp, release_year>=2010)
+
 mdfm <- dfm(recent, verbose=TRUE, remove_punct=TRUE,
-            remove_numbers=TRUE, remove=stopwords("english"))
+            remove_numbers=TRUE, remove=c(stopwords("english"),
+                                          '|', '<', '>', '=', 'accessdate',
+                                          'ref', 'cite', 'web'))
 cdfm <- dfm_weight(dfm_trim(mdfm, min_docfreq = 5, verbose=TRUE), "prop")
 
-set.seed(777) # set random seed to ensure replicability
-kc <- kmeans(cdfm, centers=5)
+set.seed(1234) # set random seed to ensure replicability
+kc <- kmeans(cdfm, centers=4)
 table(kc$cluster)
 head(docvars(recent)$name[kc$cluster==1])
 head(docvars(recent)$name[kc$cluster==2])
 head(docvars(recent)$name[kc$cluster==3])
 head(docvars(recent)$name[kc$cluster==4])
-head(docvars(recent)$name[kc$cluster==5])
 
-# action movies?
+# Plots with words about movies, rather than words about the movies itself?
 head(textstat_keyness(cdfm, target=kc$cluster==1),n=20)
-# romantic movies?
+# plots of romantic movies?
 head(textstat_keyness(cdfm, target=kc$cluster==2),n=20)
-# independent films?
+# plots of films about death / murder?
 head(textstat_keyness(cdfm, target=kc$cluster==3),n=20)
-# drama?
+# plots of "feel-good" movies?
 head(textstat_keyness(cdfm, target=kc$cluster==4),n=20)
-# comedy?
-head(textstat_keyness(cdfm, target=kc$cluster==5),n=20)
 ```
 
 Hierarchical clustering is an alternative approach to group documents. It relies on the matrix of distances between documents and works from the bottom up to create clusters: starting with lowest pairwise distance, then sequentially merges documents into clusters as the distances become larger.
@@ -114,13 +116,16 @@ pres_dfm <- dfm_weight(
   dfm_trim(pres_dfm, min_termfreq = 5, min_docfreq = 3), "prop")
 
 # hierarchical clustering - get distances on normalized dfm
-pres_dist_mat <- textstat_dist(pres_dfm, method = "euclidean")
+pres_dist_mat <- as.dist(textstat_dist(pres_dfm, method = "euclidean"))
 
 # hiarchical clustering the distance object
 pres_cluster <- hclust(pres_dist_mat)
 
 # label with document names
 pres_cluster$labels <- docnames(pres_dfm)
+
+# plot dendrogram
+plot(pres_cluster)
 ```
 
 
