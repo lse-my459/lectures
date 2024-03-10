@@ -1,0 +1,120 @@
+---
+title: "A simple topic model"
+author: "Friedrich Geiecke"
+date: "11 March 2024"
+output: html_document
+---
+
+Loading packages:
+
+```{r}
+#install.packages("stm")
+#install.packages("wordcloud")
+
+library("pdftools")
+library("quanteda")
+library("pdftools")
+library("stm")
+library("tidyverse")
+library("zoo")
+```
+
+In this notebook, we will study a topic model estimated on the PDF of Newton's Principia (1687) which we just downloaded. Reading the book into R with `pdftools` and creating a document frequency matrix with `quanteda`:
+
+```{r}
+principia <- pdf_text("principia.pdf")
+principia <- principia[2:length(principia)]
+principia <- str_replace_all(principia, "[\r\n]" , "")
+```
+
+```{r}
+principia_dfm <- principia %>% corpus %>%
+  tokens(remove_punct = TRUE, remove_numbers = TRUE) %>%
+  tokens_remove(stopwords("en"), padding = TRUE) %>%
+  tokens_ngrams(n = 1:2) %>% # up to bigrams
+  dfm() %>%
+  dfm_trim(min_termfreq = 5)
+principia_dfm
+```
+
+Note that we only look at one book in this simple example and that we treat each page as a document. Some of these pages will contain very little text. More advanced approaches could combine pages, analyse chapters as documents, or many different books.
+
+Converting the `quanteda` object into an input for the structural topic model:
+
+```{r}
+stm_input <- convert(principia_dfm, to = "stm")
+```
+
+In this first notebook, we will estimate a very simple model with only 3 topics. Note that if we do not supply any covariates, the `stm` package estimates a standard correlated topic model. Hence, we can also use `stm` for general topic modeling without additional covariates. Note that the "spectral" initialisation will always return the same model (differences might still result e.g. from varying numerical precision on different computers). For other initialisations, we could set a pseudo random number seed in order to obtain the same result again, this can be done with the `seed` option in the `stm` function.
+
+```{r}
+ctmodel <- stm(stm_input$documents, stm_input$vocab, K = 3,
+               data = stm_input$meta, verbose = FALSE,
+               init.type = c("Spectral"), seed = 123) 
+```
+
+Top words in all topics:
+
+```{r}
+plot(ctmodel)
+```
+
+And individual word clouds for each topic:
+
+```{r}
+cloud(ctmodel, topic = 1, scale = c(2,.25))
+cloud(ctmodel, topic = 2, scale = c(2,.25))
+cloud(ctmodel, topic = 3, scale = c(2,.25))
+```
+
+It seems we have identified three broad themes: A topic that contains terms such as "sun" or "comet" that we could call "astronomy", one that contains terms regarding geometry, equations, and algebra which we could term "maths", and a last topic containing words related to force and motion that we could term "mechanics" (although of course other parts of the book are about this topic as well).
+
+We can also access the key output matrices of the model as discussed in the lecture:
+
+```{r}
+theta <- ctmodel$theta
+dim(theta)
+
+beta <- exp(ctmodel$beta$logbeta[[1]])
+dim(beta)
+
+vocabulary <- ctmodel$vocab
+```
+
+Note that if we had added topic content covariates and would have estimated a structural instead of a correlated topic model, the betas would need some weighting as can be seen [here](https://github.com/bstewart/stm/blob/master/R/cloud.R). Yet, as many functions access beta for us, we can e.g. obtain the highest probability words for each topic more easily with e.g. `labelTopics(model, n = 20)$prob`.
+
+What can we learn about the structure of the book with this "automated reading"? Let us smooth topic shares in documents with a 10 page moving average and plot them:
+
+```{r}
+
+plot_data <- data.frame(Page = 1:nrow(theta))
+plot_data$Maths <- theta[,1]
+plot_data$Astronomy <- theta[,2]
+plot_data$Mechanics <- theta[,3]
+
+plot_data[,c("Maths", "Mechanics", "Astronomy")] <-
+  rollmean(plot_data[,c("Maths", "Mechanics", "Astronomy")], 10,
+           align = "right", na.pad = TRUE)
+
+plot_data <- pivot_longer(plot_data,
+                          cols = c("Maths", "Mechanics", "Astronomy"),
+                          names_to = "Topic", values_to = "Shares")
+plot_data <- plot_data %>% drop_na()
+
+p <- ggplot(plot_data, aes(x = Page, 
+                        y = Shares, group = Topic))
+p + geom_line(aes(color = Topic)) + theme_classic()
+```
+
+This outcome could now e.g. be crosschecked by looking at the PDF which indeed indicates that the pages around 150 contain maths in large proportion.
+
+If we had tried different number of topics, we would e.g. also have managed to detect that the first pages of this edition are discussing the life of Newton before the Principia starts. Yet, with a higher number of topics we would would have also had several indistinguishable topics about the same themes. One option to explore would be whether combining pages to create longer documents would improve the fit here and allow to have larger numbers of topics which are still coherent.
+
+Because we have estimated a correlated topic model, we can also look at the correlations between topics:
+
+```{r}
+topic_correlations <- topicCorr(ctmodel)
+topic_correlations
+```
+
+Topics 2 and 3 are less negatively correlated than e.g. 1 and 2, so it seems that mechanics terms such as "force" and astronomy terms such as "planets" appear together relatively more often. If pages were longer and the number of topics larger, topics could be positively correlated.

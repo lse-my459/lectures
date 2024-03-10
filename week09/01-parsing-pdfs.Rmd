@@ -1,0 +1,59 @@
+---
+title: "Reading PDF documents into R"
+author: "Friedrich Geiecke"
+date: "11 March 2024"
+output: html_document
+---
+
+Loading packages:
+
+```{r}
+#install.packages("tesseract")
+#install.packages("pdftools")
+
+library("pdftools")
+library("stringr")
+library("quanteda")
+```
+
+
+A common question, e.g. when analysing scans of old books, is how to read/parse the textual content of PDFs into programming languages such as R or Python. For R, the package [pdftools](see also https://cran.r-project.org/web/packages/pdftools/pdftools.pdf) has a range of functionalities to do this.
+
+## 1.1 PDFs containing text
+
+As an example, let us consider Newton's Principia (1687) in its English translation. To obtain the book as a PDF, you can go to Google Books https://books.google.co.uk/books?id=KaAIAAAAIAAJ&printsec=frontcover, click on the drop-down menu in the upper right hand corner, and download the book as a PDF. The file is also available as epublication (sometimes books can furthermore be downloaded as plain text), but we will use this book as an example of text in a PDF. Note that an option to obtain many old books immediately as R objects is the package `gutenbergr` (see also https://cran.r-project.org/web/packages/gutenbergr/vignettes/intro.html) which is based on on http://gutenberg.org.
+
+The PDF is parsed into R using the `pdf_text` function which returns a character vector with one row corresponding to one page:
+
+```{r}
+principia <- pdf_text("principia.pdf")
+class(principia)
+length(principia)
+```
+
+Deleting the first page which has been added by Google, deleting new line and return codes:
+
+```{r}
+principia <- principia[2:length(principia)]
+principia <- str_replace_all(principia, "[\r\n]" , "")
+```
+
+Transforming the data into a `quanteda` corpus:
+
+```{r}
+principia_corpus <- principia %>% corpus(
+  docvars = data.frame(page=1:length(principia)))
+```
+
+From here on, we could create a dfm etc.
+
+### 1.2 PDFs only containing text in images
+
+Things become much trickier if the PDFs do not contain machine-readable text, but instead image such as scans. You can usually detect this case if you cannot select text in a PDF with your mouse. Yet, there is open source OCR (optical character recognition) software which can be used. In R, the package `tesseract` offers an implementation of Google's Tesseract and `pdftools` has a function which implicitly calls the `tesseract` package. As an example, I have added a photo of the first edition cover of Keynes's General Theory (1936) to the course repo. The following uses OCR software to detect the text on the image and to transform it into machine readable text:
+
+```{r}
+general_theory_cover <- pdf_ocr_text(pdf = "general_theory_cover.pdf", language = "eng", dpi = 300)
+general_theory_cover
+```
+
+This worked quite well. Note, however, that the output would be worse if the photo also contained the non-text parts of the cover. In general, these algorithms work best with plain text pages, and things can become more difficult if pages e.g. contain tables or non-text elements.
