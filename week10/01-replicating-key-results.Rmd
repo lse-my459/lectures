@@ -73,7 +73,7 @@ does_not_fit <- function(words, embedding_matrix = embeddings) {
   word_vectors <- embedding_matrix[words,]
   
   # Compute the mean of the vectors
-  mean_vector <- colSums(embedding_matrix[words,])
+  mean_vector <- colMeans(embedding_matrix[words,])
   
   # Compute similarities to the mean
   similarities_to_mean <- word_vectors%*%mean_vector
