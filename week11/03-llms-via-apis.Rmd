@@ -1,0 +1,83 @@
+---
+title: "Using large language models via APIs -- Illustration"
+output: html_document
+date: "25 March 2024"
+---
+
+The following notebook discusses how LLMs which are too large to run locally can be used via APIs. The notebook is only intended as an illustration of how APIs, rather than graphical user interfaces, can allow to process texts at scale in research and other work. It is not required to register for this API in our course and a range of similar APIs also exist from several other providers.
+
+```{r}
+library("httr")
+```
+
+Load API key without displaying it in code:
+
+```{r}
+readRenviron(".env")
+key <- Sys.getenv("api_key")
+```
+
+Define a function to send a request to the model (also see API documentation [here](https://platform.openai.com/docs/introduction)):
+
+```{r}
+ask_llm <- function(prompt, system_prompt, model, temperature, key) {
+
+  # Chat API endpoint
+  endpoint_url <- "https://api.openai.com/v1/chat/completions"
+
+  # Create message list
+  messages <- list(
+    list("role" = "system", "content" = system_prompt),
+    list("role" = "user", "content" = prompt)
+  )
+
+  # Combine all information
+  body <- list(
+    messages = messages,
+    model = model,
+    temperature = temperature
+  )
+
+  # Post request to the API and store response
+  response <- POST(url = endpoint_url,
+                   body = body,
+                   config = add_headers(`Authorization` = paste("Bearer", key)),
+                   encode = "json")
+  
+  # Translate response into R object
+  response <- content(response, "parsed")
+  
+  # Return answer to prompt (stored in response)
+  return(response$choices[[1]]$message$content) 
+  
+}
+```
+
+Example:
+
+```{r}
+# From Shannon's 'A Mathematical Theory of Communication' (1948)
+document <- "The recent development of various methods of modulation such as PCM and PPM which exchange bandwidth for signal-to-noise ratio has intensified the interest in a general theory of communication. A basis for such a theory is contained in the important papers of Nyquist 1 and Hartley 2 on this subject. In the present paper we will extend the theory to include a number of new factors, in particular the effect of noise in the channel, and the savings possible due to the statistical structure of the original message and due to the nature of the final destination of the information."
+
+answer <- ask_llm(promp = paste("In 1-3 words, from which field is the following text:", document),
+                  system_prompt = "You are a mathematics professor at a research university",
+                  model = "gpt-3.5-turbo-0125",
+                  temperature = 0.7,
+                  key = key)
+
+answer
+```
+
+It also knows the author etc:
+
+```{r}
+ask_llm(promp = paste("Who is the author of:", document),
+                  system_prompt = "You are an economics professor at a research university",
+                  model = "gpt-3.5-turbo-0125",
+                  temperature = 0,
+                  key = key)
+```
+
+As a side note, if you previously had not heard about Claude Shannon and are interested in the history of science, have a look at: https://www.youtube.com/watch?v=E3OldEtfBrE & https://en.wikipedia.org/wiki/Claude_Shannon
+
+Using a function like this to loop over many documents such as papers, news articles, policy documents, company reports, etc., would allow to process and extract information from large amounts of text research. LLM APIs from common providers can also e.g. return embeddings by using a different endpoint. For more details on how to work with APIs in R, see e.g. the course `MY472 - Data for Data Scientists`. Furthermore, smaller but still very capable free LLMs for chat, embeddings, etc., can also increasingly be run locally (see e.g. https://huggingface.co/docs/transformers/en/index in Python).

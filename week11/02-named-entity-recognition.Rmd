@@ -1,0 +1,41 @@
+---
+title: "Named entity recognition"
+output: html_document
+date: "25 March 2024"
+---
+
+--------------------------------------------------------------------------------
+
+#### Preliminary notes
+
+When running the notebook for the first time, run:
+
+1. `install.packages("spacyr")`
+2. `library("spacyr")`
+3. `spacy_install()`
+
+--------------------------------------------------------------------------------
+
+One common challenge in quantitative text analysis is to extract standardised information from very large amounts of documents that cannot all be read manually. Current neural network models can e.g. be leveraged to extract named entities which are mentioned in text. While this could also in principle be achieved with current chat LLMs (see the next notebook), it is much faster and cheaper for this specific task to use a library such as `spacy` and a local language model.
+
+Loading the library and downloading its small language model option:
+
+```{r}
+#install.packages("spacyr")
+library("spacyr")
+spacy_initialize(model = "en_core_web_sm")
+```
+Two short examples:
+
+```{r}
+documents <- c(d1 = "Andy Murray gained a measure of revenge against Tomas Martin Etcheverry by beating the Argentine in the second round of the Miami Open.", # From: https://www.bbc.co.uk/sport/tennis/68648482
+               d2 = "The Bank of England boss has said 'we are on the way' to interest rate cuts after they were left unchanged at 5.25%, their highest for 16 years. The Bank still needed to see inflation fall further, but last month's drop to 3.4% was 'very encouraging and good news,' governor Andrew Bailey said.") # From: https://www.bbc.co.uk/news/business-68618436
+
+# Process the documents with spacy
+parsed_documents <- spacy_parse(documents, entity = TRUE)
+
+# Extract entities from documents
+entity_extract(parsed_documents, type = "all")
+```
+
+
