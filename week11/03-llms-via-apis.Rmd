@@ -4,7 +4,7 @@ output: html_document
 date: "25 March 2024"
 ---
 
-The following notebook discusses how LLMs which are too large to run locally can be used via APIs. The notebook is only intended as an illustration of how APIs, rather than graphical user interfaces, can allow to process texts at scale in research and other work. It is not required to register for this API in our course and a range of similar APIs also exist from several other providers.
+The following notebook discusses how LLMs which are too large to run locally can be used via APIs. The notebook is only intended as an illustration of how APIs, rather than graphical user interfaces, can allow to process texts at scale with LLMs in research and other work. It is not required to register for this API in our course and a range of similar APIs also exist from several other providers.
 
 ```{r}
 library("httr")
@@ -72,7 +72,7 @@ It also knows the author etc:
 
 ```{r}
 ask_llm(promp = paste("Who is the author of:", document),
-                  system_prompt = "You are an economics professor at a research university",
+                  system_prompt = "You are a mathematics professor at a research university",
                   model = "gpt-3.5-turbo-0125",
                   temperature = 0,
                   key = key)
@@ -80,4 +80,4 @@ ask_llm(promp = paste("Who is the author of:", document),
 
 As a side note, if you previously had not heard about Claude Shannon and are interested in the history of science, have a look at: https://www.youtube.com/watch?v=E3OldEtfBrE & https://en.wikipedia.org/wiki/Claude_Shannon
 
-Using a function like this to loop over many documents such as papers, news articles, policy documents, company reports, etc., would allow to process and extract information from large amounts of text research. LLM APIs from common providers can also e.g. return embeddings by using a different endpoint. For more details on how to work with APIs in R, see e.g. the course `MY472 - Data for Data Scientists`. Furthermore, smaller but still very capable free LLMs for chat, embeddings, etc., can also increasingly be run locally (see e.g. https://huggingface.co/docs/transformers/en/index in Python).
+Using a function like this to loop over many documents such as papers, news articles, policy documents, company reports, etc., would allow to process and extract information from large amounts of text in research. LLM APIs from common providers can also e.g. return embeddings by using a different endpoint. For more details on how to work with APIs in R, see e.g. the course `MY472 - Data for Data Scientists`. Furthermore, smaller but still very capable free LLMs for chat, embeddings, etc., can also increasingly be run locally (see e.g. https://huggingface.co/docs/transformers/en/index in Python).

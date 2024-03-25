@@ -41,11 +41,11 @@ y_train <- reuters$train$y
 x_test <- reuters$test$x
 y_test <- reuters$test$y
 
-cat(length(x_train), 'train sequences\n')
-cat(length(x_test), 'test sequences\n')
+cat(length(x_train), "train sequences\n")
+cat(length(x_test), "test sequences\n")
 
 num_classes <- max(y_train) + 1 # +1 because y labels start at 0
-cat(num_classes, 'labels\n')
+cat(num_classes, "labels\n")
 
 
 # Transform text into relative frequency matrix (mode = "count" would create dfm)
@@ -53,35 +53,31 @@ tokenizer <- text_tokenizer(num_words = max_words)
 x_train <- sequences_to_matrix(tokenizer, x_train, mode = "freq")
 x_test <- sequences_to_matrix(tokenizer, x_test, mode = "freq")
 
-cat('x_train shape:', dim(x_train), '\n')
-cat('x_test shape:', dim(x_test), '\n')
+cat("x_train shape:", dim(x_train), "\n")
+cat("x_test shape:", dim(x_test), "\n")
 
 # Create one-hot labels
 y_train <- to_categorical(y_train, num_classes)
 y_test <- to_categorical(y_test, num_classes)
-cat('y_train shape:', dim(y_train), '\n')
-cat('y_test shape:', dim(y_test), '\n')
-
+cat("y_train shape:", dim(y_train), "\n")
+cat("y_test shape:", dim(y_test), "\n")
 ```
 
 Creating the model:
 
 ```{r}
-
-cat('Building model...\n')
-
 model <- keras_model_sequential()
 model %>%
   layer_dense(units = 512, input_shape = c(max_words)) %>% 
-  layer_activation(activation = 'relu') %>% 
+  layer_activation(activation = "relu") %>% 
   layer_dropout(rate = 0.5) %>% 
   layer_dense(units = num_classes) %>% 
-  layer_activation(activation = 'softmax')
+  layer_activation(activation = "softmax")
 
 model %>% compile(
-  loss = 'categorical_crossentropy',
+  loss = "categorical_crossentropy",
   optimizer = optimizer_adam(learning_rate = 0.01),
-  metrics = c('accuracy')
+  metrics = c("accuracy")
 )
 model
 ```
@@ -110,8 +106,8 @@ score <- model %>% evaluate(
   verbose = 1
 )
 
-cat('Test loss:', score[[1]], '\n')
-cat('Test accuracy', score[[2]], '\n')
+cat("Test loss:", score[[1]], "\n")
+cat("Test accuracy", score[[2]], "\n")
 ```
 
 References:

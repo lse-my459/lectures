@@ -16,9 +16,9 @@ When running the notebook for the first time, run:
 
 --------------------------------------------------------------------------------
 
-One common challenge in quantitative text analysis is to extract standardised information from very large amounts of documents that cannot all be read manually. Current neural network models can e.g. be leveraged to extract named entities which are mentioned in text. While this could also in principle be achieved with current chat LLMs (see the next notebook), it is much faster and cheaper for this specific task to use a library such as `spacy` and a local language model.
+One common challenge in quantitative text analysis is to extract standardised information from very large amounts of documents that cannot all be read manually. Current neural network models can e.g. be leveraged to find named entities which are mentioned in text. While this could also in principle be achieved with current chat LLMs (see the next notebook), it is much faster and cheaper for this specific task to use a library such as `spacy` and a local language model.
 
-Loading the library and downloading its small language model option:
+Loading the library and downloading its smaller language model for faster computation (for other options, see https://spacy.io/usage/models):
 
 ```{r}
 #install.packages("spacyr")
