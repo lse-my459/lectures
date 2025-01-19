@@ -1,6 +1,3 @@
-# Lecture materials for MY459, LT 2023
+# Lecture materials for MY459, WT 2025
 
-## Course handout page: http://lse-my459.github.io
-
----
-
+## Course website: http://lse-my459.github.io
