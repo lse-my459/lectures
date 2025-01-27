@@ -1,0 +1,315 @@
+---
+title: "Seminar 1: Solutions to Exercises"
+subtitle: "LSE MY459: Quantitative Text Analysis"
+date-modified: "27 January 2025" 
+toc: true
+format: html
+execute:
+  eval: false
+---
+
+## Part 1: fun with digital text
+
+1. There is a file in the week 2 folder on GitHub (see <https://github.com/lse-my459/lectures/tree/master/week02>) called `news_article.txt`. Read the file into R using `read_file()` in `tidyverse`/`reader` and print the string you just loaded using the `cat()` function, as well as the `print()` function.
+
+```{r}
+## Ryan's answer
+library("tidyverse")
+raw <- read_file(file.path(wdir,"news_article.txt"))
+cat(raw)
+```
+
+2. Figure out the encoding of the file.
+
+```{r}
+## Ryan's answer
+guess_encoding(file.path(wdir,"news_article.txt"))
+```
+
+3. Re-read the file specifying the correct encoding and print the text using both `cat()` and `print()`. What language does it appear to be?
+
+```{r}
+## Ryan's answer
+raw <- read_file(file.path(wdir,"news_article.txt"), locale = locale(encoding = "KOI8-R"))
+cat(raw)
+print(raw)
+```
+
+4. Save a new file called `news_article_UTF8.txt` with UTF-8 encoding so that future you will be able to access the text with no problems. Try to open each file using a plain text editor on your computer and notice the difference!
+
+```{r}
+## Ryan's answer
+write_file(raw, file.path(wdir,"news_article_UTF8.txt"))
+```
+
+
+## Part 2: load tweet data
+
+1. Load the Trump tweets and convert the resulting object as a tibble using `tibble()` function.
+
+```{r}
+## Ryan's answer
+tweets <- paste0("/Users/r.hubert/Local/lectures/week02/trump-tweets.json") %>%
+  parseTweets() %>%
+  tibble()
+```
+
+2. Find the column corresponding to the date and time of each tweet and format it as a date-time object. See <https://lubridate.tidyverse.org/articles/lubridate.html#parsing-dates-and-times>. How many tweets are posted at exactly the same time as another tweet? Hint: to see if there are tweets posted at the same time, use the [`count()`](https://dplyr.tidyverse.org/reference/count.html) function on the date-time column you just created.
+
+```{r}
+## Ryan's answer
+tweets <- tweets %>% 
+  mutate(created_at = str_replace(created_at, "^[A-z]+ ([A-z]+) ([0-9]+) ([^ ]+) .+?([0-9]+)$", "\\1 \\2 \\4 \\3")) %>% 
+  mutate(created_at = mdy_hms(created_at))
+
+tweets %>% 
+  count(created_at) %>%
+  arrange(desc(n)) %>%
+  filter(n > 1) %>%
+  select(n) %>%
+  sum() %>%
+  paste("There are", ., "tweets posted at the same time as another tweet.")
+```
+
+3. Arrange the dataframe in ascending order by date and then ascending order by tweet text using `arrange()`.
+
+```{r}
+## Ryan's answer
+tweets <- tweets %>% 
+  arrange(created_at, text)
+```
+
+4. Trump first became US president at 12:00 Eastern US time on 20th January 2017. Filter out any tweet posted before Trump became president. Hint: all listed times are UK times. 
+
+```{r}
+## Ryan's answer
+tweets <- tweets %>% 
+  filter(created_at >= ymd_hm("2017-01-20 17:00"))
+```
+
+## Part 3: basic text manipulations
+
+1. Print the text of the first tweet he posted as US president. 
+
+```{r}
+## Ryan's answer
+print(tweets$text[1]) # displays raw plaint text
+cat(tweets$text[1]) # displays with some simple formatting (e.g. line breaks)
+```
+
+2. Find the tweet Trump posted at 12:55 pm Eastern time on that day and print it here. You should use the `cat()` function to print, and not the `print()` function.
+
+```{r}
+## Ryan's answer
+tw1 <- tweets %>% 
+  filter(created_at >= ymd_hm("2017-01-20 17:55")) %>%
+  filter(row_number()==1) %>%
+  select(text)
+tw1 <- tw1$text  
+cat(tw1)
+```
+
+3. Manually tokenise this tweet using any white space by splitting the string using the relevant function in `stringr`. You should end up with a character vector containing each of the tokens. You might find the [`stringr` cheat sheet](https://github.com/rstudio/cheatsheets/blob/main/strings.pdf) to be useful! How many tokens are in this tweet?
+
+```{r}
+## Ryan's answer
+tok <- tw1 %>% 
+  str_split("\\s+") %>% 
+  .[[1]]
+print(tok)
+length(tok)
+```
+
+4. Emojis do not always show up nicely. Replace any emojis in these tokens with a "place holder" like `<smiley emoji>`.
+
+```{r}
+## Ryan's answer
+tok <- tok %>% 
+  str_replace_all("[#]MAGA.+", "#MAGA<us flag emoji>")
+```
+
+5. Clean up the formatting of these tokens: capitalisation, punctuation, junk html code, etc. Be sure to retain any punctuation you might think is important, like hashtags or punctuation used to make emoji placeholders. Print the resulting vector of tokens. 
+
+```{r}
+## Ryan's answer
+tok <- tok %>% 
+  str_to_lower() %>% # make lowercase
+  str_replace_all("^&#?[a-z]+;$", " ") %>% # remove all HTML symbols
+  str_replace_all("[^A-z#<> ]", "") %>%
+  str_squish() %>% # remove excess white space
+  .[.!=""] # remove empyu strings
+```
+
+## Part 4: removing stop words
+
+1. Load a list of English stop words from the `quanteda` package, and assign it the name `engsw`.
+
+```{r}
+## Ryan's answer
+engsw <- stopwords("english")
+print(engsw)
+```
+
+2. Remove every token from the list of tokens that is a stop word (as defined by the list of stop words you loaded above).
+
+```{r}
+## Ryan's answer
+tok <- tok[!tok %in% engsw]
+print(tok)
+```
+
+## Part 5: creating equivalence classes
+
+1. Use the Snowball stemmer to stem the words in the list of tokens you created above. You can do this using the [`tokens_wordstem()`](https://quanteda.io/reference/tokens_wordstem.html) function in `quanteda`. Note: to use this function, you must first convert your vector of tokens into a `quanteda` `tokens` object using `as.tokens()`. See <https://quanteda.io/reference/as.tokens.html>. Note: you will need to make your token vector a list first using `list()`. Be sure to convert your object back into a character vector once you are done stemming.^[To use the stemmer in `quanteda`, your object must be a `tokens` object. So, for this question, we are converting our "regular" character vector into a `tokens` object to use the stemmer, then converting it back to a character vector.]
+
+```{r}
+## Ryan's answer
+tok <- tok %>%
+  list() %>%
+  as.tokens() %>% 
+  tokens_wordstem() %>% 
+  .[["text1"]]
+print(tok)
+```
+
+2. How big is the vocabulary in your document after all these preprocessing steps? 
+
+```{r}
+## Ryan's answer
+length(tok)
+```
+
+## Part 6: using `quanteda` to make a DFM of all tweets
+
+1. In your dataframe from part 2, create a unique document ID based on the tweet date and keep only the columns with this unique ID and the text of the tweet.
+
+```{r}
+## Ryan's answer
+tweets <- tweets %>%
+  group_by(created_at) %>%
+  mutate(doc_id = paste0(created_at," [", row_number(),"]")) %>%
+  ungroup() %>%
+  select(doc_id, text)
+```
+
+
+2. Find the most common bigrams, trigrams and 4-grams in the corpus of tweets. From the lists, choose two n-grams that you would like to keep together in your corpus. Then, manipulate the text so that they stay together when you tokenise. 
+
+```{r}
+tweets %>% 
+  corpus() %>% 
+  textstat_collocations(size=2)
+tweets %>% 
+  corpus() %>% 
+  textstat_collocations(size=3)
+tweets %>% 
+  corpus() %>% 
+  textstat_collocations(size=4)
+
+tweets$text <- str_replace_all(tweets$text, "[Nn]orth\\s[kK]orea", "North_Korea") 
+tweets$text <- str_replace_all(tweets$text, "[Uu]nited\\s[Ss]tates\\s[Ss]upreme\\s[Cc]ourt", "United_States_Supreme_Court")
+```
+
+2. Create a DFM using pipes. You should explicitly write out each of the arguments available for `tokens()` and `dfm()`, choosing the options that make sense for this context. Provide comments indicating your preprocessing choices, including if you keep the default. Keep in mind that every QTA project has its own requirements. One thing we will expect from you in this course is that you are explicit about which preprocessing options you choose, and that they make sense for your context.
+
+```{r}
+## Ryan's answer
+tweet.dfm <- tweets %>% 
+  corpus() %>% 
+  tokens(what = "word", # keep default
+         remove_punct = TRUE, # we're using bag of words; don't need punctuation
+         remove_symbols = TRUE, # we're going to analyse words, not symbol use
+         remove_numbers = TRUE, # we're going to analyse words, not numbers
+         remove_url = TRUE, # many of these tweets have urls in them; not useful
+         remove_separators = TRUE, # keep default (read docs)
+         split_hyphens = FALSE, # we want to keep hyphenated words as is to keep their compound meaning
+         split_tags = FALSE, # keep hashtags and usernames intact
+         include_docvars = TRUE, # keep default
+         padding = FALSE, # keep default (read docs for use case)
+         concatenator = "_", # keep default (used to paste together n-grams)
+         verbose = quanteda_options("verbose")) %>% # keep default
+  tokens_remove(engsw) %>%
+  tokens_wordstem() %>% 
+  dfm(tolower = TRUE, # yes, we want to lower case every token!
+      remove_padding = FALSE, # keep default, but doesn't matter since we didn't add padding when tokenising
+      verbose = quanteda_options("verbose")) # keep default
+```
+
+3. How many documents in this DFM and how big is the vocabulary?
+
+```{r}
+## Ryan's answer
+nrow(tweet.dfm)
+ncol(tweet.dfm)
+```
+
+4. Remove any feature that is used in less than 3 documents or is used less than 3 times total. How many features were removed from the vocabulary?
+
+```{r}
+## Ryan's answer
+tweet.dfm <- tweet.dfm %>%
+  dfm_trim(min_termfreq = 3, min_docfreq = 3)
+```
+
+5. Using this smaller DFM, now make a second DFM that uses tf-idf weighting.
+
+```{r}
+## Ryan's answer
+tweet.dfm.w <- tweet.dfm %>%
+  dfm_tfidf()
+```
+
+## Part 7: descriptive statistics
+
+1. What are the most used features in the coupus (using the weighted DFM)? Do you see any potential problems with your preprocessing?
+
+```{r}
+## Ryan's answer
+tweet.dfm.w %>% 
+  topfeatures()
+## notice that we get "amp" here -- which is from the HTML code for ampersand; we should have manually removed HTML code before doing preprocessing
+```
+
+2. Plot two word clouds of this corpus: one using the unweighted DFM, the other using the weighted DFM. See any major differences?
+
+```{r}
+## Ryan's answer
+tweet.dfm %>% 
+  textplot_wordcloud()
+tweet.dfm.w %>% 
+  textplot_wordcloud()
+```
+
+3. Demonstrate Zipf's law in this (preprocessed) set of documents by plotting Word Frequency (y-axis) against Word Frequency Rank (x-axis). Use the unweighted DFM.
+
+```{r}
+## Ryan's answer
+tweet.dfm %>%
+  colSums() %>% 
+  sort(., decreasing=TRUE) %>%
+  tibble(rank=1:length(.), freq = unname(.), word=names(.)) %>%
+  select(-.) %>%
+  ggplot(aes(x=rank,y=freq,label=word)) + 
+  geom_point() + 
+  geom_text(aes(label=ifelse(rank<=6,as.character(word),'')), hjust=0, vjust=0, nudge_x = 4, nudge_y = 3) + 
+  labs(title="Zipf's law for Trump's January 2017 tweets") + 
+  ylab("Word Frequency") + xlab("Word Frequency Rank") + 
+  theme_bw()
+```
+
+4. Measure the readability of each tweet using the Flesch-Kincaid index. Print a tweet with a readability score of 1, and another with a readability score of 12:
+
+```{r}
+## Ryan's answer
+fk <- tweets %>%
+  corpus() %>%
+  textstat_readability(measure = "Flesch.Kincaid") 
+fklh <- fk %>%
+  filter((0.9 < Flesch.Kincaid & Flesch.Kincaid < 1.1) | (11.9 < Flesch.Kincaid & Flesch.Kincaid < 12.1)) %>%
+  mutate(Flesch.Kincaid = round(Flesch.Kincaid)) %>%
+  group_by(Flesch.Kincaid) %>% 
+  filter(row_number() == 1) %>% 
+  arrange(Flesch.Kincaid)
+print(paste0("Most readable: ", tweets$text[tweets$doc_id == fklh$document[1]]))
+print(paste0("Least readable: ", tweets$text[tweets$doc_id == fklh$document[2]]))
+```

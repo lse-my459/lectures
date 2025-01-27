@@ -1,0 +1,147 @@
+---
+title: "Seminar 1: Introduction to Quanteda"
+subtitle: "LSE MY459: Quantitative Text Analysis"
+date-modified: "27 January 2025" 
+toc: true
+format: html
+execute:
+  echo: true
+  eval: false
+---
+
+**Note**: we have set the document-level default for `eval` to be `false` (see above). This means none of the code chunks below will run when you render the file. However, you may wish to change this to `true` while you are actively working with the document so that the code runs when you render.
+
+First, let's do some "directory management" by specifying the file path to the folder on your computer where you wish to store this week's seminar materials. 
+
+```{r}
+## What is the full path to the directory for this week's seminar files?
+wdir <- "" # <- paste your path here
+```
+
+We will again look at the set of tweets posted by Donald Trump's Twitter account from January 2017 through June 2018. These are contained in a JSON file called `trump-tweets.json` available on the course website (see link below). First, let's download the file directly in R:
+
+```{r}
+## Where is the remote copy of the file?
+rfile <- "https://github.com/lse-my459/lectures/blob/master/week02/trump-tweets.json"
+
+## Where will we store the local copy if it?
+lfile <- file.path(wdir, "trump-tweets.json") # creates full file path
+
+## Check if you have the file yet and if not, download it to correct location
+if(!file.exists(lfile)){
+  download.file(rfile, lfile)
+}
+```
+
+## Preprocessing text with `quanteda`
+
+As we discussed earlier, before we can do any type of automated text analysis,we will need to go through several "preprocessing" steps before it can be passed to a statistical model. We'll use the `quanteda` package  [`quanteda`](https://quanteda.io/) here.
+
+The basic unit of work for the `quanteda` package is called a `corpus`, which represents a collection of text documents with some associated metadata. Documents are the subunits of a corpus. You can use `summary` to get some information about your corpus.
+
+```{r}
+library("quanteda")
+library("quanteda.textplots")
+library("streamR")
+
+tweets <- parseTweets(lfile)
+twcorpus <- corpus(tweets$text)
+summary(twcorpus, n=10)
+```
+
+We can tokenise the documents with the `tokens()` function. We'll do it using a pipe:
+
+```{r}
+toks <- twcorpus %>%
+  tokens()
+toks
+```
+
+This returns a `tokens` object that contains a vector of tokens in each document. In the chunk above, we are just using the package defaults for the `tokens()` function. However, many of the pre-processing steps we covered in lecture can be done with the `tokens()` function. See the [`tokens()` documentation](https://quanteda.io/reference/tokens.html) or run `?tokens`.
+
+Let's extract n-grams. The code below will extract all combinations of one, two, and three words (e.g. it will consider both "human", "rights", and "human rights" as tokens in the matrix).
+
+```{r}
+toks_ngram <- tokens_ngrams(toks, n = 1:3)
+twdfm <- dfm(toks_ngram, tolower=TRUE)
+twdfm
+```
+
+To stem our documents Stemming relies on the `SnowballC` package's implementation of the Porter stemmer:
+
+```{r}
+toks_stem <- tokens_wordstem(toks_ngram)
+twdfm <- dfm(toks_stem, tolower=TRUE)
+twdfm
+
+example <- tolower(tweets$text[1])
+tokens(example)
+tokens_wordstem(tokens(example))
+```
+
+
+A very useful feature of tokens objects is _keywords in context_, which returns all the appearances of a word (or combination of words) in its immediate context.
+
+```{r}
+toks %>%
+  kwic("immigration", window=10) %>%
+  .[1:5,]
+toks %>%
+  kwic("healthcare", window=10) %>%
+  .[1:5,]
+toks %>%
+  kwic("clinton", window=10) %>%
+  .[1:5,]
+```
+
+We can also do this without pipes as follows.
+
+```{r}
+kwic(toks, "immigration", window=10)[1:5,]
+kwic(toks, "healthcare", window=10)[1:5,]
+kwic(toks, "clinton", window=10)[1:5,]
+```
+
+We can create a document-feature matrix from the tokens using the `dfm()` function.
+ 
+```{r}
+twdfm <- toks %>%
+  dfm(verbose=TRUE)
+twdfm
+```
+
+The `dfm` will show the count of times each word appears in each document (tweet):
+
+```{r}
+twdfm[1:5, 1:10]
+```
+
+
+In a large corpus like this, many features often only appear in one or two documents. In some case it's a good idea to remove those features, to speed up the analysis or because they're not relevant. We can `trim` the dfm:
+
+```{r}
+twdfm <- dfm_trim(twdfm, min_docfreq=3, verbose=TRUE)
+twdfm
+```
+
+It's often a good idea to take a look at a wordcloud of the most frequent features to see if there's anything weird.
+
+```{r}
+textplot_wordcloud(twdfm, rotation=0, min_size=.75, max_size=3, max_words=50)
+```
+
+What is going on? We probably want to remove words and symbols which are not of interest to our data, such as http here. This class of words which is not relevant are called stopwords. These are words which are common connectors in a given language (e.g. "a", "the", "is"). We can also see the list using `topFeatures`
+
+```{r}
+topfeatures(twdfm, 25)
+```
+
+We can remove twitter words and stopwords using `tokens_remove()`:
+
+```{r}
+toks_stop <- tokens_remove(toks_stem, c(stopwords("english"), "t.co", "https", "rt", "amp", "http", "t.c", "can", "u"))
+
+twdfm <- dfm(toks_stop)
+textplot_wordcloud(twdfm, rotation=0, min_size=.75, max_size=3, max_words=50)
+```
+

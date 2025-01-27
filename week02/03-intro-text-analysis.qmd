@@ -1,0 +1,258 @@
+---
+title: "Seminar 1: Basics of Text Analysis"
+subtitle: "LSE MY459: Quantitative Text Analysis"
+date-modified: "27 January 2025" 
+toc: true
+format: html
+execute:
+  echo: true
+  eval: false
+---
+
+This Quarto file provides additional information about the basic tools of text analysis that we will use in this course to work witht ext as data.
+
+First, let's do some "directory management" by specifying the file path to the folder on your computer where you wish to store this week's seminar materials. 
+
+```{r}
+## What is the full path to the directory for this week's seminar files?
+wdir <- "" # <- paste your path here
+```
+
+Our running example will be the set of tweets posted by Donald Trump's Twitter account from January 2017 through June 2018. These are contained in a JSON file called `trump-tweets.json` available on the course website (see link below). First, let's download the file directly in R:
+
+```{r}
+## Where is the remote copy of the file?
+rfile <- "https://github.com/lse-my459/lectures/blob/master/week02/trump-tweets.json"
+
+## Where will we store the local copy if it?
+lfile <- file.path(wdir, "trump-tweets.json") # creates full file path
+
+## Check if you have the file yet and if not, download it to correct location
+if(!file.exists(lfile)){
+  download.file(rfile, lfile)
+}
+```
+
+## String manipulation with R
+
+We will start with basic string manipulation with R.
+
+```{r}
+library("streamR")
+tweets <- parseTweets(lfile) # load local file using `parseTweets()`
+head(tweets)
+```
+
+R stores the basic string in a character vector. `length` gets the number of items in the vector, while `nchar` is the number of characters in the vector.
+
+```{r}
+length(tweets$text)
+tweets$text[1]
+nchar(tweets$text[1])
+```
+
+Note that we can work with multiple strings at once.
+
+```{r}
+nchar(tweets$text[1:10])
+sum(nchar(tweets$text[1:10]))
+max(nchar(tweets$text[1:10]))
+```
+
+We can merge different strings into one using `paste`:
+```{r}
+paste(tweets$text[1], tweets$text[2], sep='--')
+```
+
+As we will see later, it is often convenient to convert all words to lowercase or uppercase.
+
+```{r}
+tolower(tweets$text[1])
+toupper(tweets$text[1])
+```
+
+We can grab substrings with `substr`. The first argument is the string, the second is the beginning index (starting from 1), and the third is final index.
+
+```{r}
+substr(tweets$text[1], 1, 2)
+substr(tweets$text[1], 1, 10)
+```
+
+This is useful when working with date strings as well:
+
+```{r}
+dates <- c("2015/01/01", "2014/12/01")
+substr(dates, 1, 4) # years
+substr(dates, 6, 7) # months
+```
+
+Let's dig into the data a little bit more. Given the source of the dataset, we can expect that there will be many tweets mentioning topics such as immigration or health care. We can use the `grep` command to identify these. `grep` returns the index where the word occurs.
+
+```{r}
+grep('immigration', tweets$text[1:70])
+```
+
+`grepl` returns `TRUE` or `FALSE`, indicating whether each element of the character vector contains that particular pattern.
+
+```{r}
+grepl("immigration", tweets$text[1:25])
+```
+
+Going back to the full dataset, we can use the results of `grep` to get particular rows. First, check how many tweets mention the word "immigration".
+
+```{r}
+nrow(tweets)
+grep('immigration', tweets$text)
+length(grep('immigration', tweets$text))
+
+```
+
+It is important to note that matching is case-sensitive. You can use the `ignore.case` argument to match to a lowercase version.
+
+```{r}
+nrow(tweets)
+length(grep('immigration', tweets$text))
+length(grep('immigration', tweets$text, ignore.case = TRUE))
+```
+
+Now let's try to identify what tweets are related to immigration and try to store them into a smaller data frame. How would we do it?
+
+```{r}
+immi_tweets <- tweets[grep('immigration', tweets$text, ignore.case=TRUE),]
+```
+
+## Regular expressions
+
+Another useful tool to work with text data is called "regular expression". You can learn more about regular expressions [here](http://www.zytrax.com/tech/web/regex.htm). Regular expressions let us develop complicated rules for both matching strings and extracting elements from them. 
+
+For example, we could look at tweets that mention more than one handle using the operator "|" (equivalent to "OR")
+
+```{r}
+nrow(tweets)
+length(grep('immigration|immigrant', tweets$text, ignore.case=TRUE))
+```
+
+We can also use question marks to indicate optional characters.
+
+```{r}
+nrow(tweets)
+length(grep('immigr?', tweets$text, ignore.case=TRUE))
+```
+
+This will match immigration, immigrant, immigrants, etc.
+
+Other common expression patterns are:
+
+- `.` matches any character, `^` and `$` match the beginning and end of a string.  
+- Any character followed by `{3}`, `*`, `+` is matched exactly 3 times, 0 or more times, 1 or more times.  
+- `[0-9]`, `[a-zA-Z]`, `[:alnum:]` match any digit, any letter, or any digit and letter.
+- Special characters such as `.`, `\`, `(` or `)` must be preceded by a backslash.  
+- See `?regex` for more details.
+
+For example, how many tweets ends with an exclamation mark? How many tweets are retweets? How many tweets mention any username? And a hashtag?
+```{r}
+length(grep('!$', tweets$text, ignore.case=TRUE))
+length(grep('^RT @', tweets$text, ignore.case=TRUE))
+length(grep('@[A-Za-z0-9_]+', tweets$text, ignore.case=TRUE))
+length(grep('#[A-Za-z0-9_]+', tweets$text, ignore.case=TRUE))
+```
+
+## More complex examples of regular expressions using stringr
+
+`stringr` is an R package (inside `tidyverse`) that extends the capabilities of R for manipulation of text. It has functions to do all of the same things we already did above. For example:
+
+```{r}
+library("stringr")
+str_to_lower(tweets$text[1]) # equivalent to tolower()
+str_length(tweets$text[1]) # equivalent to nchar()
+str_c("Tweet 1: ", tweets$text[1]) # equivalent to paste0()
+```
+
+In the `tidyverse` world (including `stringr`), it's common to use pipes. The chunk above can be written with pipes as follows:
+
+```{r}
+tweets$text[1] %>%
+  str_to_lower()
+tweets$text[1] %>%
+  str_length()
+tweets$text[1] %>%
+  str_c("Tweet 1: ", .)
+```
+
+Now, let's say that e.g. we want to replace a pattern (or a regular expression) with another string:
+
+```{r}
+str_replace(tweets$text[2], '@[0-9_A-Za-z]+', 'USERNAME')
+```
+
+Note this will only replace the _first_ instance. For all the instances, do:
+
+```{r}
+str_replace_all(tweets$text[2], '@[0-9_A-Za-z]+', 'USERNAME')
+```
+
+To extract a pattern we can use `str_extract`, and again we can extract one or all instances of the pattern:
+
+```{r}
+str_extract(tweets$text[2], '@[0-9_A-Za-z]+')
+str_extract_all(tweets$text[2], '@[0-9_A-Za-z]+')
+```
+
+This function is vectorized, which means we can apply it to all elements of a vector simultaneously. That will give us a list, which we can then turn into a vector to get a frequency table of the most frequently mentioned handles or hashtags:
+
+```{r}
+handles <- str_extract_all(tweets$text, '@[0-9_A-Za-z]+')
+handles[1:3]
+handles_vector <- unlist(handles)
+head(sort(table(handles_vector), decreasing = TRUE), n=10)
+```
+
+Now with hashtags...
+
+```{r}
+hashtags <- str_extract_all(tweets$text, '#[A-Za-z0-9_]+')
+hashtags[1:6]
+hashtags_vector <- unlist(hashtags)
+head(sort(table(hashtags_vector), decreasing = TRUE), n=10)
+```
+
+## Even more practice with regex
+
+Here's a text string from a U.S. federal district court case record.
+
+```{r}
+sample_text <- "ORDER OF REASSIGNMENT to District Judge Aileen M Cannon for all further proceedings, Judge Cecilia M. Altonaga no longer assigned to case. Signed by Judge Cecilia M. Altonaga on 11/23/2020. See attached document for full details. (yar) (Entered: 11/23/2020)"
+```
+
+Helpful functions are e.g. `str_view`, `str_extract`, `str_extract_all`. The `_all` variant process all matches in the string rather than only the first.
+
+The view function allows to view keyword and/or regular expression matches in R similarly to in a text editor:
+
+```{r}
+## Find all the mentions of "judge"
+str_view(sample_text, "judge") # this doesn't print anything!
+## Note that regex searches are case sensitive
+str_view(sample_text, "Judge")
+```
+
+```{r}
+## Find all parenthese
+str_view(sample_text, "(|)") ## This isn't what we expected!!
+## Parentheses are special characters in regex, need to put in brackets
+str_view(sample_text, "[(]|[)]") ## This isn't what we expected!!
+```
+
+The extract function on the other hand allows to extract the matching characters. The following regular expression is one possible way to use the options we discussed this week to extract the times from the file (as the backslash is already used as an escape symbol in normal strings in R, we need to use a double backslash for regular expressions):
+
+```{r}
+# \d = a digit
+# \d{1,2} = 1-2 digits, e.g. "1", "11", "23"
+# [:.\\s-]? = optional set of characters (":","."," ","-")
+str_extract(sample_text, "[(]Entered[:] *[0-9/]+[)]")
+```
+
+```{r}
+str_extract_all(sample_text, "Judge [A-z]+ [A-Z][.]? [A-z]+")
+```
+
+Other helpful functions are e.g. `str_detect` (particularly when all words are elements in a long character vector) and `str_count`. For a detailed discussion of strings and regular expressions in R with the `stringr` package, see http://r4ds.had.co.nz/strings.html and the vignette https://cran.r-project.org/web/packages/stringr/vignettes/regular-expressions.html.

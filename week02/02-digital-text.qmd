@@ -1,0 +1,193 @@
+---
+title: "Seminar 1: Digital Text"
+subtitle: "LSE MY459: Quantitative Text Analysis"
+date-modified: "27 January 2025" 
+toc: true
+format: html
+execute:
+  echo: true
+  eval: false
+---
+
+This brief document discusses character encoding and how to perform simple text searches in R using regular expressions.
+
+**Note**: we will set the document-level default for `eval` to `false` for most `.qmd` documents we provide for seminar (see above for example). This means the code chunks below will not run when you render the file. However, you may wish to change this to `true` while you are actively working with the document so that the code runs when you render.
+
+First, let's do some "directory management" by specifying the [file path](https://en.wikipedia.org/wiki/Path_(computing)) to the folder on your computer where you wish to store this week's seminar materials. 
+
+```{r}
+## What is the full path to the directory for this week's seminar files?
+wdir <- "" # <- paste your path here
+```
+
+## Character encoding 
+
+Loading packages (the `tidyverse` includes the `readr` and `stringr` packages that we are using here):
+
+```{r}
+library(tidyverse)
+```
+
+First, let's examine how special characters can affect file size. Since `readr` encodes all text files with UTF-8, the accents will require more bytes
+
+```{r}
+# Write a plain text file with my last name
+raw <- "Hübert" # how many bytes should you expect?
+write_file(raw, file.path(wdir, "hubert1.txt")) # note: default encoding is UTF-8
+
+# Write a plain text file with my last name, but omit the accent
+raw <- "Hubert" # how many bytes should you expect?
+write_file(raw, file.path(wdir, "hubert2.txt")) # note: default encoding is UTF-8
+```
+
+By default `readr` will encode files it saves as UTF-8. See <https://readr.tidyverse.org/reference/locale.html>. As far as I know, you cannot choose a different encoding when you write a file in `readr` using `write_file`. For the most part, this is not only okay, it's preferable. Let's see why through some examples. 
+
+First, I wrote "&uüДሊ🫠" into three text files using different encodings:
+
+- `utf-examples-8.txt` (UTF-8): 13 bytes
+- `utf-examples-16.txt` (UTF-16): 16 bytes
+- `utf-examples-32.txt` (UTF-32): 28 bytes 
+
+First note that the UTF-32 encoded file is more than double the size of UTF-8 (just to store the same characters!). Next, let's try to open them.
+
+```{r}
+## This works
+read_file(file.path(wdir, "utf-examples-8.txt"))  # This works (sort of...)
+## These do not work
+read_file(file.path(wdir, "utf-examples-16.txt"))  # This drops most of the characters
+read_file(file.path(wdir, "utf-examples-32.txt"))  # This drops most of the characters
+```
+
+The longer the text (i.e., more characters), the worse the "bloat" from UTF-32 becomes. To see this one more time, I saved three files starting with "methodology" which contain the text from the Methodology Department's [About us](https://www.lse.ac.uk/Methodology/About-us/About-us) page. Notice that a file encoded as UTF-8 takes up 3,284 bytes of storage, but the file encoded as UTF-32 takes up 13,124 bytes. It's the exact same text, just stored more inefficiently! 
+
+So when would you ever need to use UTF-16 or UTF-32?
+
+- Many Windows applications encode in UTF-16 by default, so it's good to know this.
+- It is more efficient to search in UTF-32 encoded documents (see <https://en.wikipedia.org/wiki/UTF-32>)
+
+Finally, let's look at some Chinese characters. We will try to read a file containing the Chinese-language word "上海" (Shanghai), which is encoded with the [GB_18030](https://en.wikipedia.org/wiki/GB_18030) encoding. Let's pretend that we don't know the document's encoding and we are trying to load into R using `read_file`.
+
+This prints hexadecimal code points mapped to approximately "ÉϺ£": 
+
+```{r, error = TRUE}
+read_file(file.path(wdir, "shanghai.txt")) 
+```
+
+This does not work at all:
+
+```{r, error = TRUE}
+read_file(file.path(wdir, "shanghai.txt"), locale = locale(encoding="utf-8"))
+```
+
+This does not print the same characters:
+
+```{r, error = TRUE}
+read_file(file.path(wdir, "shanghai.txt"), locale = locale(encoding="utf-16")) 
+```
+
+Maybe R can help us?? (Nope!)
+
+```{r, error = TRUE}
+guess_encoding(file.path(wdir, "shanghai.txt"))
+```
+
+Maybe Terminal can help??
+
+```{bash, eval = FALSE}
+$ cd <path>
+$ file -I shanghai.txt
+shanghai.txt: text/plain; charset=iso-8859-1
+```
+
+No, it can't... it guesses the encoding is [ISO-8859-1](https://en.wikipedia.org/wiki/ISO/IEC_8859-1), which just extended ASCII. Clearly this is not correct, as we expect Chinese characters.
+
+If we just *happen* to know the encoding, we can finally read the file correctly:
+
+```{r}
+read_file(file.path(wdir, "shanghai.txt"), locale = locale(encoding="gb18030"))
+```
+
+What a nightmare! But if you find yourself in this situation and are lucky enough to figure out a file's encoding, you should always save a new version encoding in a more standard encoding, like UTF-8. You might even consider using a file name indicating it is encoded with UTF-8 so that the next person will thank you!
+
+Since `readr` encodes as UTF-8 by default, we can do the following:
+
+```{r}
+shanghai <- read_file(file.path(wdir, "shanghai.txt"), locale = locale(encoding="gb18030"))
+print(shanghai)
+write_file(shanghai, file.path(wdir, "shanghai_utf-8.txt"))
+```
+
+Now that we've saved with UTF-8 encoding, let's see how much easier it is to read the file:
+
+```{r}
+read_file(file.path(wdir, "shanghai_utf-8.txt"))
+```
+
+Note here that we no longer have to specify an encoding, as R assumes it is UTF-8, and it is. We get the expected text.
+
+## Parsing PDFs
+
+A common question, e.g. when analysing scans of old books, is how to read/parse the textual content of PDFs into programming languages such as R or Python. For R, the package [pdftools](https://cran.r-project.org/web/packages/pdftools/pdftools.pdf) has a range of functionalities to do this.
+
+```{r}
+#install.packages("tesseract") # install if you need to
+#install.packages("pdftools") # install if you need to
+#install.packages("quanteda") # install if you need to
+library("pdftools")
+library("stringr")
+library("quanteda")
+```
+
+### PDFs containing text
+
+As an example, let us consider _Newton's Principia_ (1687) in its English translation. To obtain the book, go to Google Books under link <https://www.google.co.uk/books/edition/Newton_s_Principia/KaAIAAAAIAAJ> and click on the "Download PDF". Put the downloaded file in the directory you are working in for this seminar (`wdir`).
+
+Note: sometimes files are also available as `epub` format (or even plain text!), but we will use this book as an example of text in a PDF. Note that an option to obtain many old books immediately as R objects is the package `gutenbergr` (see also <https://cran.r-project.org/web/packages/gutenbergr/vignettes/intro.html>) which is based on on <http://gutenberg.org>.
+
+The PDF is parsed into R using the `pdf_text` function which returns a character vector with one row corresponding to one page.
+
+```{r}
+principia <- pdf_text(file.path(wdir, "Newton_s_Principia.pdf"))
+class(principia)
+length(principia)
+```
+
+We now delete the first few pages, which, as you can see in the PDF, have no important text.
+
+```{r}
+principia <- principia[10:length(principia)]
+```
+
+When taking text from scans, software usually creates manual line breaks based on where the line visually appears to end on a page. These line breaks usually have little meaning for text analysis, and just create messier, more cumbersome (and sometimes larger) files. We'll clean things up by deleting the manual line breaks.
+
+```{r}
+principia <- str_replace_all(principia, "[\r\n]" , " ")
+```
+
+From here, you can create a document-feature matrix. But you would, of course, need to decide what a "document" is for your task. The `pdf_text()` function returns a collection of pages: is that really how you would divide up this book for analysis?
+
+### PDFs only containing text in images
+
+Things become much trickier if the PDFs do not contain machine readable text, but instead image such as scans. You can usually detect this case if you cannot select text in a PDF with your mouse. Yet, there is open source OCR (optical character recognition) software which can be used. In R, the package `tesseract` offers an implementation of Google's Tesseract and `pdftools` has a function which implicitly calls the `tesseract` package. 
+
+```{r}
+#install.packages(tesseract) # install if you need to
+library("tesseract")
+```
+
+As an example, I have added a photo of the first edition cover of Keynes's General Theory (1936) to the course repo. The following uses OCR software to detect the text on the image and to transform it into machine readable text:
+
+```{r}
+general_theory <- pdf_ocr_text(pdf = file.path(wdir, "general_theory_cover.pdf"), language = "eng", dpi = 300)
+print(general_theory)
+```
+
+This worked quite well. Note, however, that the output would be worse if the photo also contained the non-text parts of the cover. In general, these algorithms work best with plain text pages, and things become more difficult if pages e.g. contain tables or non-text elements. Still, after some cleaning, the output can be good enough for a bag of word type of model.
+
+Again, we can remove line breaks.
+
+```{r}
+general_theory <- str_replace_all(general_theory, "[\r\n]" , " ")
+```
+
+There are new methods for extracting text from _hand-written_ documents, but these are well outside the bounds of what we're doing in this class.

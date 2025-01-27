@@ -1,0 +1,122 @@
+---
+title: "Seminar 1: Course Introduction"
+subtitle: "LSE MY459: Quantitative Text Analysis"
+date-modified: "27 January 2025" 
+toc: true
+format: html
+---
+
+Before we dive into our first coding session, let's become a bit more familiar with the programming tools used in this course.
+
+# Introduction to RMarkdown and Quarto
+
+We will write our annotated R code using either [Quarto](https://quarto.org/) or [RMarkdown](http://rmarkdown.rstudio.com/). Quarto files (`.qmd`) and RMarkdown files (`.rmd`) are plain text files written in **[markdown](https://en.wikipedia.org/wiki/Markdown)**, which is a simple formatting syntax to generate HTML or PDF documents. While markdown can be used in a variety of file types (including most notably `.md` files, like READMEs on GitHub), Quarto/RMarkdown allow you to embed chunks of R code (and other kinds of code!) that will run when you generate an HTML or PDF file. 
+
+The process of generating an HTML or PDF file from a Quarto document is called "rendering" it; for Rmarkdown, it is called "knitting" it. We refer to these compiled HTML or PDF files as "knitted HTML/PDF" or "rendered HTML/PDF". You can knit/render your `.qmd` or `.rmd` file in RStudio using the `Knit` or `Render` button in the toolbar.
+
+## Quarto versus RMarkdown
+
+Quarto and RMarkdown are very similar, and the way the documents are structured is nearly identical. You can think of Quarto as the "next generation" of RMarkdown, although technically speaking, they coexist. You can choose to use either one, but Quarto has more features and has been developed to work across a range of languages (not just R). You can even make websites in Quarto! You can read about the differences [here](https://quarto.org/docs/faq/rmarkdown.html).
+
+*TLDR*: if you're new to this, I'd recommend Quarto. But there's no harm sticking to RMarkdown if you wish!
+
+Many (but not all) of the course materials focused on R coding will be provided in `.qmd` format. The materials will be written presuming you are using Quarto, but since the differences are minor, this shouldn't create many problems.
+
+## Embedding R chunks
+
+You can embed R code in chunks like this one:
+
+```{r}
+1 + 1
+```
+
+You can run each chunk of code one by one, by highlighting the code and clicking `Run` (or pressing `Ctrl + Enter` in Windows or `command + enter` in macOS). You will typically see the output of the code in the console below as well as inside the `.qmd` file.
+
+Alternatively, you can knit/render an HTML or PDF document with all the formatted text, code, code comments, and output from your entire `.qmd` file by clicking on `Render`.
+
+You can also embed plots and graphics, for example:
+
+```{r}
+x <- c(1, 3, 4, 5)
+y <- c(2, 6, 8, 10)
+plot(x, y)
+```
+
+If you run the chunk of code, the plot will be generated on the panel on the bottom right corner. If instead you knit the entire file, the plot will appear after you view the html document.
+
+Using R + Markdown has several advantages: it leaves an "audit trail" of your work, including documentation explaining the steps you made. This is helpful to not only keep your own progress organised, but also make your work reproducible and more transparent. You can easily correct errors (just fix them and run the script again), and after you have finished, you can generate a PDF or HTML version of your work. Keep in mind: if you are unable to `Render` your `.qmd` file (or `Knit` your `.rmd` file), it means that there are bugs in your code (or bad markdown syntax) that you need to fix. 
+
+We will be exploring R through Quarto over the next few modules. For more details and documentation see <https://quarto.org/>.
+
+# Make sure R and RStudio are installed
+
+You should install (or update) R and RStudio. You can install or update R from <https://cran.r-project.org/>. You can install or update RStudio from <https://posit.co/downloads/>. 
+
+After you have installed/updated, please run the following code to make sure that you have the current version of R.
+
+```{r}
+version$version.string
+```
+
+This chunk should return `R version 4.4.2 (2024-10-31)`. If your computer does not print the correct version number, please update R on your computer from <https://cran.r-project.org/>.
+
+You will also need to install several R packages that we will use this term (there may be others we need later): 
+
+- [`tidyverse`](https://www.tidyverse.org/): a collection of packages used for working with data in R, most notably the [`stringr`](https://stringr.tidyverse.org/) package we'll use to manipulate text
+- [`streamR`](https://cran.r-project.org/web/packages/streamR/streamR.pdf): a package for working with Twitter/X data acquired through the Twitter API (now [practically defunct](https://docs.x.com/x-api/getting-started/about-x-api))
+- [`quanteda`](https://quanteda.io/): a package for doing quantitative text analysis
+
+To install or update these packages on your computer, run the following code chunk in R/RStudio:
+
+```{r, eval=FALSE}
+install.packages("tidyverse")
+install.packages("streamR")
+install.packages("quanteda")
+install.packages("quanteda.textplots")
+install.packages("quanteda.textstats")
+install.packages("quanteda.textmodels")
+install.packages("devtools")
+devtools::install_github("quanteda/quanteda.corpora")
+```
+
+Notice we've added an option to the chunk above: `eval=FALSE`. This instructs R _not_ to execute this code chunk when this file is rendered, although the text of chunk will still appear in the rendered document. If you would like for the text of the code chunk not to appear, you would use `echo=FALSE`. Quarto and RMarkdown use different syntax for specifying code chunk options, but Quarto will recognise and understand the RMarkdown syntax. RMarkdown specifies options as in the previous code chunk. Quarto uses a syntax as in the following code chunk:
+
+```{r}
+#| eval: false
+2 + 2
+```
+
+The chunk above will appear in the rendered HTML file, but it will not be run and therefore its output will not be shown. 
+
+See [here](https://quarto.org/docs/computations/execution-options.html) for a list of code chunk execution options you can provide in Quarto, such as `echo` and `eval`. See [here](https://quarto.org/docs/computations/r.html#chunk-options) for a discussion of the differences between RMarkdown and Quarto execution option syntax. 
+
+Now, you should double check you have the most recent version of `quanteda`, and that it works. First, check the version:
+
+```{r}
+installed.packages()["quanteda", "Version"]
+```
+
+This chunk should print `4.2.0`. If it does not print the correct version, please run `install.packages("quanteda")` once again, as this should update the package.
+
+Now, check that the package works on your computer by running this code chunk:
+
+```{r}
+suppressMessages(library("quanteda")) # don't print welcome message
+library("quanteda.textmodels")
+toks <- data_corpus_irishbudget2010 %>% 
+  tokens() %>%
+  dfm() %>% 
+  print(max_nfeat = 5, show_summary = FALSE)
+```
+
+We will often use **piping** syntax in our code using either `%>%` or `|>`.^[Note that `|>` is the base R syntax for pipes, introduced in R version 4.1, while `%>%` is piping syntax from the `magrittr` package that predates the base R pipe. See <https://www.tidyverse.org/blog/2023/04/base-vs-magrittr-pipe/> for a discussion of the differences.] 
+To read more about how this works, see chapter 3 of [_R for Data Science_](https://r4ds.hadley.nz/data-transform). You do not need to use pipes, but you should become comfortable enough with them to engage with the code from this class. 
+
+For example, the previous code chunk can be completed without pipes as follows.
+
+```{r}
+suppressMessages(library("quanteda")) # don't print welcome message
+library("quanteda.textmodels")
+toks <- tokens(data_corpus_irishbudget2010)
+print(dfm(toks), max_nfeat = 5, show_summary = FALSE)
+```

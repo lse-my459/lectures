@@ -1,0 +1,75 @@
+---
+title: "Seminar 1: Descriptive Statistics with DFMs"
+subtitle: "LSE MY459: Quantitative Text Analysis"
+date-modified: "27 January 2025" 
+toc: true
+format: html
+execute:
+  echo: true
+  eval: false
+---
+
+## Lexical diversity
+
+```{r}
+library(quanteda)
+library(quanteda.textstats)
+```
+
+`textstat_lexdiv()` calculates lexical diversity in various measures based on the number of unique types of tokens and the length of a document. It is useful for analysing speakers' or writers' linguistic skill, or complexity of ideas expressed in documents. By default the function calculates TTR.
+
+Let's see how it works with a corpus of US Presidental [Inaugural Addresses](https://en.wikipedia.org/wiki/United_States_presidential_inauguration#Inaugural_address), which is available in the `quanteda` package as [`data_corpus_inaugural`](https://quanteda.io/reference/data_corpus_inaugural.html).
+
+First, let's calculate the TTR of each document (inaugural address) using piping syntax.
+
+```{r}
+data_corpus_inaugural %>%
+  tokens() %>%
+  tokens_remove(stopwords("english")) %>%
+  dfm() %>% 
+  textstat_lexdiv() %>%
+  tail(5)
+```
+
+Then, let's do it without piping, which you'll see gives the same result.
+
+```{r}
+toks <- tokens(data_corpus_inaugural)
+toks <- tokens_remove(toks, stopwords("english"))
+dfmat_inaug <- dfm(toks)
+tstat_lexdiv <- textstat_lexdiv(dfmat_inaug)
+tail(tstat_lexdiv, 5)
+```
+
+Now, let's plot TTR for each inaugural address over time. Notice here we are using base R's "out of the box" plotting tools. You may wish to use `ggplot` instead, as it has more powerful features and uses a "[layered grammar of graphics](https://r4ds.hadley.nz/data-visualize)" that is somewhat easier to understand.
+
+```{r}
+plot(tstat_lexdiv$TTR, type = 'l', xaxt = 'n', xlab = NULL, ylab = "TTR")
+grid()
+axis(1, at = seq_len(nrow(tstat_lexdiv)), labels = docvars(dfmat_inaug, 'President'))
+```
+
+We can also calculate alternative metrics of lexical diversity. See the [documentation](https://quanteda.io/reference/textstat_lexdiv.html) for more information and details. We'll do it without piping.
+
+```{r}
+# variations of TTR
+tstat_lexdiv <- textstat_lexdiv(dfmat_inaug, measure=c("TTR", "R", "D"))
+tail(tstat_lexdiv, 5)
+# average-based methods
+tstat_lexdiv_avg <- textstat_lexdiv(tokens(data_corpus_inaugural), measure="MATTR")
+tail(tstat_lexdiv_avg, 5)
+
+cor(cbind(tstat_lexdiv[,2:4], tstat_lexdiv_avg[,2]))
+```
+
+## Readability
+
+`textstat_readability()` computes a metric of document complexity based on characteristics of the text such as number of words, sentence length, number of syllables, etc. The common metric used is the Flesch-Kincaid index. Let's plot the "readability" of each inaugural using the Flesch-Kincaid index.
+
+```{r}
+stat_read <- textstat_readability(data_corpus_inaugural,
+                     measure = c("Flesch.Kincaid", "FOG"))
+plot(stat_read$Flesch.Kincaid, type = 'l', xaxt = 'n', xlab = NULL, ylab = "Flesch.Kincaid")
+grid()
+axis(1, at = seq_len(nrow(stat_read)), labels = docvars(dfmat_inaug, 'President'))
+```

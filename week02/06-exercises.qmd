@@ -1,0 +1,187 @@
+---
+title: "Seminar 1: Exercises"
+subtitle: "LSE MY459: Quantitative Text Analysis"
+date-modified: "27 January 2025" 
+toc: true
+format: html
+execute:
+  eval: false
+---
+
+## Part 1: fun with digital text
+
+1. There is a file in the week 2 folder on GitHub (see <https://github.com/lse-my459/lectures/tree/master/week02>) called `news_article.txt`. Read the file into R using `read_file()` in `tidyverse`/`reader` and print the string you just loaded using the `cat()` function, as well as the `print()` function.
+
+```{r}
+## Your code goes here
+```
+
+2. Figure out the encoding of the file.
+
+```{r}
+## Your code goes here
+```
+
+3. Re-read the file specifying the correct encoding and print the text using both `cat()` and `print()`. What language does it appear to be?
+
+```{r}
+## Your code goes here
+```
+
+4. Save a new file called `news_article_UTF8.txt` with UTF-8 encoding so that future you will be able to access the text with no problems. Try to open each file using a plain text editor on your computer and notice the difference!
+
+```{r}
+## Your code goes here
+```
+
+
+## Part 2: load tweet data
+
+1. Load the Trump tweets and convert the resulting object as a tibble using `tibble()` function.
+
+```{r}
+## Your code goes here
+```
+
+2. Find the column corresponding to the date and time of each tweet and format it as a date-time object. See <https://lubridate.tidyverse.org/articles/lubridate.html#parsing-dates-and-times>. How many tweets are posted at exactly the same time as another tweet? Hint: to see if there are tweets posted at the same time, use the [`count()`](https://dplyr.tidyverse.org/reference/count.html) function on the date-time column you just created.
+
+```{r}
+## Your code goes here
+```
+
+3. Arrange the dataframe in ascending order by date and then ascending order by tweet text using `arrange()`.
+
+```{r}
+## Your code goes here
+```
+
+4. Trump first became US president at 12:00 Eastern US time on 20th January 2017. Filter out any tweet posted before Trump became president. Hint: all listed times are UK times. 
+
+```{r}
+## Your code goes here
+```
+
+## Part 3: basic text manipulations
+
+1. Print the text of the first tweet he posted as US president. 
+
+```{r}
+## Your code goes here
+```
+
+2. Find the tweet Trump posted at 12:55 pm Eastern time on that day and print it here. You should use the `cat()` function to print, and not the `print()` function.
+
+```{r}
+## Your code goes here
+```
+
+3. Manually tokenise this tweet using any white space by splitting the string using the relevant function in `stringr`. You should end up with a character vector containing each of the tokens. You might find the [`stringr` cheat sheet](https://github.com/rstudio/cheatsheets/blob/main/strings.pdf) to be useful! How many tokens are in this tweet?
+
+```{r}
+## Your code goes here
+```
+
+4. Emojis do not always show up nicely. Replace any emojis in these tokens with a "place holder" like `<smiley emoji>`.
+
+```{r}
+## Your code goes here
+```
+
+5. Clean up the formatting of these tokens: capitalisation, punctuation, junk html code, etc. Be sure to retain any punctuation you might think is important, like hashtags or punctuation used to make emoji placeholders. Print the resulting vector of tokens. 
+
+```{r}
+## Your code goes here
+```
+
+## Part 4: removing stop words
+
+1. Load a list of English stop words from the `quanteda` package, and assign it the name `engsw`.
+
+```{r}
+## Your code goes here
+```
+
+2. Remove every token from the list of tokens that is a stop word (as defined by the list of stop words you loaded above).
+
+```{r}
+## Your code goes here
+```
+
+## Part 5: creating equivalence classes
+
+1. Use the Snowball stemmer to stem the words in the list of tokens you created above. You can do this using the [`tokens_wordstem()`](https://quanteda.io/reference/tokens_wordstem.html) function in `quanteda`. Note: to use this function, you must first convert your vector of tokens into a `quanteda` `tokens` object using `as.tokens()`. See <https://quanteda.io/reference/as.tokens.html>. Note: you will need to make your token vector a list first using `list()`. Be sure to convert your object back into a character vector once you are done stemming.^[To use the stemmer in `quanteda`, your object must be a `tokens` object. So, for this question, we are converting our "regular" character vector into a `tokens` object to use the stemmer, then converting it back to a character vector.]
+
+```{r}
+## Your code goes here
+```
+
+2. How big is the vocabulary in your document after all these preprocessing steps? 
+
+```{r}
+## Your code goes here
+```
+
+## Part 6: using `quanteda` to make a DFM of all tweets
+
+1. In your dataframe from part 2, create a unique document ID based on the tweet date and keep only the columns with this unique ID and the text of the tweet.
+
+```{r}
+## Your code goes here
+```
+
+
+2. Find the most common bigrams, trigrams and 4-grams in the corpus of tweets. From the lists, choose two n-grams that you would like to keep together in your corpus. Then, manipulate the text so that they stay together when you tokenise. 
+
+```{r}
+## Your code goes here
+```
+
+2. Create a DFM using pipes. You should explicitly write out each of the arguments available for `tokens()` and `dfm()`, choosing the options that make sense for this context. Provide comments indicating your preprocessing choices, including if you keep the default. Keep in mind that every QTA project has its own requirements. One thing we will expect from you in this course is that you are explicit about which preprocessing options you choose, and that they make sense for your context.
+
+```{r}
+## Your code goes here
+```
+
+3. How many documents in this DFM and how big is the vocabulary?
+
+```{r}
+## Your code goes here
+```
+
+4. Remove any feature that is used in less than 3 documents or is used less than 3 times total. How many features were removed from the vocabulary?
+
+```{r}
+## Your code goes here
+```
+
+5. Using this smaller DFM, now make a second DFM that uses tf-idf weighting.
+
+```{r}
+## Your code goes here
+```
+
+## Part 7: descriptive statistics
+
+1. What are the most used features in the coupus (using the weighted DFM)? Do you see any potential problems with your preprocessing?
+
+```{r}
+## Your code goes here
+```
+
+2. Plot two word clouds of this corpus: one using the unweighted DFM, the other using the weighted DFM. See any major differences?
+
+```{r}
+## Your code goes here
+```
+
+3. Demonstrate Zipf's law in this (preprocessed) set of documents by plotting Word Frequency (y-axis) against Word Frequency Rank (x-axis). Use the unweighted DFM.
+
+```{r}
+## Your code goes here
+```
+
+4. Measure the readability of each tweet using the Flesch-Kincaid index. Print a tweet with a readability score of 1, and another with a readability score of 12:
+
+```{r}
+## Your code goes here
+```
