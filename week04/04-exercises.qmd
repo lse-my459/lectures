@@ -1,0 +1,150 @@
+---
+title: "Seminar 2: Exercises"
+subtitle: "LSE MY459: Quantitative Text Analysis"
+date-modified: "10 February 2025" 
+toc: true
+format: html
+execute:
+  echo: true
+  eval: false
+---
+
+## Part 1: Using a dictionary
+
+1. Create a dictionary called `my.dict` that contains three keys: `country`, `law` and `freedom`. Under the country key, put the full name for the US. Under the law key, include any phrase related to "law" or "constitution" (including regex patterns as needed). Under the freedom key, include any phrase related to being "free" or having "liberty" (including regex patterns as needed). 
+
+```{r}
+### Your answer goes here
+```
+
+2. Apply the dictionary to the corpus of inaugural addresses. Be sure to account for possible regex patterns (if needed) and keep a count of every word that was not categorised using the dictionary. If you need to, consult the help docs: <https://quanteda.io/reference/dfm_lookup.html>.
+
+```{r}
+### Your answer goes here
+```
+
+3. Calculate the percentage of each inaugrual address devoted to themes around freedom (as captured by your simple dictionary). Which two presidents have the highest percent, and which have the lowest?
+
+```{r}
+### Your answer goes here
+```
+
+## Part 2: Republican versus Democratic inaugural rhetoric
+
+We will use all post-war inaugural addresses to measure which words are most discriminating between Republican and Democratic addresses. 
+
+1. Load the inaugural corpus, subset to only postwar inaugural addresses, tokenise and do some standard preprocessing.
+
+```{r}
+### Your answer goes here
+```
+
+2. Create an R function that creates contingency table that you will use to calculate the relationship between how often a specific token appears in a speech and whether the speech was delivered by a Republican or Democrat. Make sure that the function returns a _matrix_, not a `quanteda` object.
+
+```{r}
+### Your answer goes here
+```
+
+3. Begin by focusing on one token, `nation`. Use your function to create a contingency table and print it here.
+
+```{r}
+### Your answer goes here
+```
+
+4. Now make a hypothetical contingency table assuming that use of the word `nation` is uncorrelated with whether an address is given by a Republican or Democrat (the independence assumption we discussed in lecture).
+
+```{r}
+### Your answer goes here
+```
+
+5. Calculate the likelihood ratio statistic and the Pearson's $\chi^2$ statistic for the association between frequency of the word `nation` and partisanship of the president. Calculate manually using the formulas and your two contingency tables. Do not use `quanteda`.
+
+```{r}
+### Your answer goes here
+```
+
+6. Now calculate the likelihood ratio statistic for every feature in the corpus using the `quanteda` function, and plot the top and bottom words. 
+
+```{r}
+### Your answer goes here
+```
+
+## Part 3: Naïve Bayes
+
+Using the corpus of 2016 US presidential primary candidate tweets, we will now use Naive Bayes to try to classify whether tweets were written by Hillary Clinton or not. 
+
+1. Load the candidate tweets data, and create a DFM using standard pre-processing steps. When you create the corpus, create a new variable indicating whether a tweet was written by Clinton or not.
+
+```{r}
+### Your answer goes here
+```
+
+2. Create a training set and a validation set. For this exercise, use 75% of your data for trianing and 25% for validation and name the training set `train` and the validation set `validation`. (Note: we are not going to do cross-validation here, although you should in general!)
+
+```{r}
+### Your answer goes here
+```
+
+3. Train a Naïve Bayes on the training set after loading the required package.
+
+```{r}
+### Your answer goes here
+```
+
+4. Create two objects, one called `preds.insample` and one called `preds.validation` where you use the model you just estimated to classify in the training set (in sample) and in the validation set (out of sample).
+
+```{r}
+### Your answer goes here
+```
+
+5. Create two confusion matrices, one for your in sample classifications and one for your out of sample classifications. Print both confusion matrices.
+
+```{r}
+### Your answer goes here
+```
+
+6. Create a function that calculates the precision and recall for a specific class $k$, as well as accuracy. You can start with the function from the file `03-supervised-learning.qmd`, but notice that fuction doesn't allow you to specify which class you want to calculate statistics for and it does not calculate accuracy. It assumes you are calculating the statistics for the class in the top row/left column of the confusion matrix.^[Why? I mentioned in lecture that when people have a binary classification task, they tend to speak in terms of positives and negatives, and they assume that precision and recall should be calculated for the "positive" class.] Include an argument `insample` which is set to `TRUE` or `FALSE`, and which will indicate whether the performance statistics are in or out of sample.
+ 
+```{r}
+### Your answer goes here
+```
+
+7. Use your function to calculate the performance statistics on the Hillary Clinton class in sample and out of sample. Why is the performance in sample better than the performance out of sample?
+
+```{r}
+### Your answer goes here
+```
+
+## Part 4: Regularised Regression
+
+Now, let's predict whether a tweet was written by a Democratic candidate or a Republican candidate using regularised regression.
+
+1. Recreate the tweet DFM including a variable for whether a tweet was written by a Democratic or Republican candidate. (Refer to code in `02-discriminating-words.qmd` for info on which candidates are Democrats versus Republicans.)
+
+```{r}
+### Your answer goes here
+```
+
+2. Create a new training set and a validation set. This time, use 85% of your data for training and 15% for validation.
+
+```{r}
+### Your answer goes here
+```
+
+3. Train a lasso regression on the training set to predict the partisanship of a tweet's author. You should use 10-fold cross validation.
+
+```{r}
+### Your answer goes here
+```
+
+4. Again predict in sample and out of sample and create two corresponding confusion matrices. 
+
+```{r}
+### Your answer goes here
+```
+
+5. Calculate the performance metrics for whether the classifier correctly predicts whether a Democrat wrote a tweet both in sample and out of sample. Use your function from above. Did the Naïve Bayes or the Lasso regression do better?
+
+```{r}
+### Your answer goes here
+```

@@ -1,0 +1,396 @@
+---
+title: "Seminar 2: Supervised Learning"
+subtitle: "LSE MY459: Quantitative Text Analysis"
+date-modified: "10 February 2025"
+toc: true
+format: html
+execute:
+  echo: true
+  eval: false
+---
+
+**Note**: we have set the document-level default for `eval` to be `false` (see above). This means none of the code chunks below will run when you render the file. However, you may wish to change this to `true` while you are actively working with the document so that the code runs when you render.
+
+First, let's do some "directory management" by specifying the file path to the folder on your computer where you wish to store this week's seminar materials. 
+
+```{r}
+## What is the full path to the directory for this week's seminar files?
+wdir <- "" # <- paste your path here
+```
+
+## Naive Bayes
+
+The code here illustrates how we can use supervised machine learning to predict categories for unseen documents based on a set of labeled documents. Our running example will focus on whether we can predict gender based on the character distribution of first names. Note that for this example, each document is a specific name (one word!), and each feature is a specific character in each name. This is a bit different than what we've done so far (treating words as document features), but all the same principles apply equally.
+
+The file `EN-names.csv` contains a list of nearly 25,000 popular names in the US labeled by the most frequent gender based on Social Security records.
+
+```{r}
+## Where is the remote copy of the file?
+rfile <- "https://raw.githubusercontent.com/lse-my459/lectures/master/week04/EN-names.csv"
+
+## Where will we store the local copy if it?
+lfile <- strsplit(rfile, "/")[[1]]
+lfile <- lfile[length(lfile)]
+lfile <- file.path(wdir, lfile) # creates full file path
+
+## Check if you have the file yet and if not, download it to correct location
+if(!file.exists(lfile)){
+  download.file(rfile, lfile)
+}
+```
+
+Let's read this dataset into R, convert it into a corpus with gender as a document-level variable.
+
+```{r}
+library("tidyverse")
+library("quanteda")
+d <- read_csv(lfile)
+
+# creating corpus object
+cnames <- corpus(d, text_field = "name")
+docvars(cnames, "gender") <- d$gender
+```
+
+As we saw in the lecture, we need to specify what the training set and test set will be. In this case, let's just take an 80% random sample of names as training set and the rest as test set, which we will use to compute the performance of our model. We will then create a document-feature matrix where each feature is a character.
+
+```{r}
+# shuffling to split into training and test set
+smp <- sample(c("train", "test"), size=ndoc(cnames), prob=c(0.80, 0.20), replace=TRUE)
+train <- which(smp=="train")
+test <- which(smp=="test")
+
+# tokenizing and creating DFM
+characters <- tokens(cnames, what="character")
+namesdfm <- dfm(characters)
+```
+
+We're now ready to train our model! Let's start with a Naive Bayes model using the `textmodel_nb()` function:
+
+```{r}
+#install.packages('quanteda.textmodels')
+library("quanteda.textmodels")
+
+# training Naive Bayes model
+nb <- textmodel_nb(namesdfm[train,], docvars(cnames, "gender")[train])
+# predicting labels for test set
+preds <- predict(nb, newdata = namesdfm[test,])
+# computing the confusion matrix
+cm <- table(docvars(cnames, "gender")[test], preds) # note: this will put true class in rows, predicted class in columns
+```
+
+How well did we do? We can compute precision, recall, and accuracy to quantify it.
+
+```{r}
+# function to compute performance metrics
+precrecall <- function(mytable, verbose=TRUE) {
+    truePositives <- mytable[1,1]
+    falsePositives <- sum(mytable[,1]) - truePositives
+    falseNegatives <- sum(mytable[1,]) - truePositives
+    precision <- truePositives / (truePositives + falsePositives)
+    recall <- truePositives / (truePositives + falseNegatives)
+    if (verbose) {
+        print(mytable)
+        cat("\n precision =", round(precision, 2), 
+            "\n    recall =", round(recall, 2), "\n")
+    }
+    invisible(c(precision, recall))
+}
+
+# precision and recall
+precrecall(cm)
+# accuracy
+sum(diag(cm)) / sum(cm)
+```
+
+Hmm, not terribly great. But what if we try with character n-grams up to bigrams instead of unigrams?
+
+```{r}
+characters <- tokens_ngrams(characters, n=1:3)
+
+
+namesdfm <- dfm(characters)
+namesdfm <- dfm_trim(namesdfm, min_docfreq = 20)
+namesdfm
+# Naive Bayes model
+nb <- textmodel_nb(namesdfm[train,], docvars(cnames, "gender")[train])
+preds <- predict(nb, newdata = namesdfm[test,])
+(cm <- table(preds, docvars(cnames, "gender")[test]))
+# performance
+precrecall(cm) # precision, recall
+sum(diag(cm)) / sum(cm) # accuracy
+
+```
+
+Slightly better! We can dig a bit more into the model by extracting the posterior class probabilities for specific characters.
+
+```{r}
+# extracting posterior word probabilities
+get_posterior <- function(nb) {
+  PwGc <- nb$param
+  Pc <- nb$priors
+  PcGw <- PwGc * base::outer(Pc, rep(1, ncol(PwGc)))
+  PcGw <- matrix(sapply(PcGw, function(x) sqrt(sum(x^2))), nrow=2, dimnames = dimnames(PwGc))
+  names(dimnames(PcGw))[1] <- names(dimnames(PwGc))[1] <- "classes"
+  PwGc
+}
+probs <- get_posterior(nb)
+probs[,c("a", "o", "e")]
+```
+
+## Regularized regression
+
+We'll now switch to the other type of classifier we just saw in the lecture - a regularized regression. This model is not implemented in quanteda, but we can use one of the other available packages in R. For regularized regression, glmnet is in my opinion the best option, since it tends to be faster than caret or mlr (in my experience at least), and it has cross-validation already built-in, so we don’t need to code it from scratch. 
+
+We'll start with a ridge regression:
+
+```{r}
+# install.packages("glmnet")
+library(glmnet)
+
+ridge <- cv.glmnet(x=namesdfm[train,], y=docvars(cnames, "gender")[train],
+                   alpha=0, nfolds=5, family="binomial")
+```
+
+We use the `cv.glmnet()` function, with the following options: `alpha` indicates whether we want a ridge penalty (`alpha=0`) or a lasso penalty (`alpha=1`), `nfolds` is the number of K folds for the cross-validation procedure, and `family` indicates the type of classifier (`binomial` means binary here).
+
+It's generally good practice to plot the results of the cross-validation procedure.
+
+```{r}
+plot(ridge)
+```
+
+What do we learn from this plot? It shows the error (with confidence intervals based on the cross-validation procedure) for each possible value of lambda (the penalty parameter). The numbers on top indicate the number of features (which remain constant with ridge, unlike with lasso). We generally find that increasing the penalty parameter actually hurts.
+
+Let's now compute different performance metrics to see how we're doing now.
+
+```{r}
+pred <- predict(ridge, namesdfm[test,], type="class")
+(cm <- table(pred, docvars(cnames, "gender")[test]))
+
+# performance metrics
+precrecall(cm) # precision, recall
+sum(diag(cm)) / sum(cm) # accuracy
+```
+
+Not bad! And with a regularized regression, in a similar way as we did earlier with the Naive Bayes model, we can also extract the feature-specific coefficients to try to understand how the latent dimension we're capturing here can be interpret.
+
+```{r}
+# extracting coefficients
+best.lambda <- which(ridge$lambda==ridge$lambda.1se)
+beta <- ridge$glmnet.fit$beta[,best.lambda]
+
+## identifying predictive features
+df <- data.frame(coef = as.numeric(beta),
+                ngram = names(beta), stringsAsFactors=F)
+
+# lowest and highest coefficients
+df <- df[order(df$coef),]
+head(df[,c("coef", "ngram")], n=10)
+tail(df[,c("coef", "ngram")], n=10)
+```
+
+The code below shows how to re-run the analysis but this time with lasso. Note that this time the number of features will change depending on the value of the penalty parameter.
+
+```{r}
+# now with lasso
+lasso <- cv.glmnet(x=namesdfm[train,], y=docvars(cnames, "gender")[train],
+                   alpha=1, nfolds=5, family="binomial")
+plot(lasso)
+
+pred <- predict(lasso, namesdfm[test,], type="class")
+(cm <- table(pred, docvars(cnames, "gender")[test]))
+
+# precision and recall
+precrecall(cm)
+# accuracy
+sum(diag(cm)) / sum(cm)
+
+# extracting coefficients
+best.lambda <- which(lasso$lambda==lasso$lambda.1se)
+beta <- lasso$glmnet.fit$beta[,best.lambda]
+
+## identifying predictive features
+df <- data.frame(coef = as.numeric(beta),
+                ngram = names(beta), stringsAsFactors=F)
+
+# note that some features become 0
+table(df$coef==0)
+
+df <- df[order(df$coef),]
+head(df[,c("coef", "ngram")], n=10)
+tail(df[,c("coef", "ngram")], n=10)
+```
+
+## Classifying "by hand" using a Naïve Bayes
+
+Here we walk through the steps for doing classification "by hand" with Naive Bayes, instead of using pre-built functions. This is important for (1) solidifying your intuition for how the Naïve Bayes classifier works, and (2) practicing for a potential problem on an exam. For this example, we are focused on classification entirely _in sample_. What does that mean? We're just focused on trying to build the classification model using Naive Bayes, but we're _not_ focused on applying it to a new (unseen) dataset. So, we can be less concerned about validation for this exercise. However, for almost all real-world QTA tasks involving classification you _will_ care about using a model on unseen data, and so you will need to use a validation approach (ideally cross validation).
+
+We'll replicate the steps we used in lecture to classify whether a given inaugural address was written by Trump. First, let's load the corpus, tokenise, do a bit of preprocessing and make a DFM. To keep things simple, let's only focus on addresses after 2000, and we'll only use the top 10 most used words in the corpus.
+
+```{r}
+library("tidyverse")
+library("quanteda")
+# Load corpus and subset to post-2000 addresses
+inaug.corp <- data_corpus_inaugural %>%
+  corpus_subset(Year > 2000)
+# Add a variable indicating whether a speech was by Trump (or not)
+inaug.corp$Trump <- ifelse(inaug.corp$President=="Trump","Trump","Not.Trump")
+# Tokenise and do standard pre-processing
+inaug.toks <- inaug.corp %>%
+  tokens(remove_punct = TRUE,
+         remove_symbols = TRUE,
+         remove_numbers = TRUE) %>%
+  tokens_tolower() %>%
+  tokens_remove(stopwords("english"))
+# Make a DFM abd stem the tokens
+inaug.dfm <- inaug.toks %>%
+  dfm() %>%
+  dfm_wordstem() %>%
+  dfm_sort(margin = "features") %>% # This sorts the columns so the most used word is on left
+  .[,1:10]
+```
+
+Recall that one of the parameters of the Naïve Bayes classifier is the proportion of documents in each class. In lecture, we called it $\hat{\delta}_k$, but in the GRS book, it's called $\hat{\alpha}_k$.^[I choose to use $\delta$ because we already have been using $\alpha$ to indicate the value of our Laplace smoother. The notation in GRS is inconsistent and changes across chapters, which is unfortunate.]
+
+I am going to create an `est` object that is a tibble where I will collect all my calculated parameter estimates as I calculate them. The first one will be the $\hat{\delta}_k$ parameters.
+
+```{r}
+est <- tibble(class = c("Not.Trump", "Trump"),
+              delta = c(ndoc(inaug.dfm[inaug.dfm$Trump == "Not.Trump",])/ndoc(inaug.dfm),
+                        ndoc(inaug.dfm[inaug.dfm$Trump == "Trump",])/ndoc(inaug.dfm)))
+```
+
+The simple Naïve Bayes classifier we learned in lecture treats all documents in a specific class as a single document. Why? Because the whole idea behind the Naïve Bayes classifier is that all documents in a specific class have the _same language model_. In our case, this specifically means that each document is generated by a multinomial distribution with parameters $M_i$ (how long is the document?) and $\boldsymbol{\mu}_{k}$ (for class $k$, what are the probabilities that each of the words in the vocabulary appear?).
+
+Practically, this means you can start by collapsing your DFM so that each row sums together all the word counts in the documents in a category. We've done this several times already, so you should be familiar with the idea of collapsing a DFM. To do it in `quanteda`, you use `dfm_group()`. Now, let's collapse our DFM into the two classes we're interested in: Trump and Not Trump. (Note: we're also stemming the words.) 
+
+```{r}
+inaug.dfm.classes <- inaug.dfm %>% 
+  dfm_group(groups = Trump)
+print(inaug.dfm.classes)
+```
+
+The process of "estimating" a Naïve Bayes classifier entails (1) calculating the proportion of documents in each category, and (2) calculating $\hat{\mu}_{kj}$ for every class $k$ (=every row in your collapsed DFM) and every document feature $j$ (=every column in your collapsed DFM). This is a lot of work to do by hand! But let's start by calculating the $\hat{\mu}$ parameters for each class (Trump and Not Trump) for the token `america`.
+
+```{r}
+# How many total tokens are in this DFM?
+J <- nfeat(inaug.dfm.classes)
+# Make a new table (like a contingency table) that collapses all tokens that are 
+# not `america` into a single column by adding the word counts together
+cont.tab <- inaug.dfm.classes %>% 
+  dfm_lookup(dictionary(list(america = c("america"))), nomatch = "not.america")
+# Calculate mu for each class, adding a Laplace smoother of 1 to each feature
+## Note: in the denominator, you add the Laplace smoother for each feature, so it's J times 1
+mu.numerator <- 1 + cont.tab[,"america"]
+mu.denominator <- J*1 + cont.tab[,"not.america"]
+## This is the estimated mu for each class for the feature `america`:
+est.feature.mu <- mu.numerator/mu.denominator
+# Let's convert this to a tibble and add it to our `est` object where we're collecting all our calculations
+est <- bind_cols(est, 
+                 tibble(mu.america = matrix(est.feature.mu)[,1]))
+```
+
+Now, we can see all the estimates we've calculated so far:
+
+```{r}
+print(est)
+```
+
+We can repeat this process over and over and over again for each of the different features (words) in the DFM. Let's make a function that does all the calculations in the previous chunk, and then we can apply that function to every column of the DFM. 
+
+```{r}
+# Create a function that calculates the mu parameter for each feature
+## Note: the argument j is the specific feature you want to calculate mu for, and alpha is the Laplace smoother (default to 1)
+calculateMu <- function(dfm,j,alpha=1){
+  # How many total tokens are in this DFM?
+  J <- nfeat(dfm)
+  # Make a new table (like a contingency table) that collapses all tokens that are 
+  # not j into a single column by adding the word counts together
+  cont.tab <- dfm %>% 
+    dfm_lookup(dictionary(list(feature.j = c(j))), nomatch = "not.feature.j")
+  # Calculate mu for each class, adding a Laplace smoother of alpha to each feature
+  ## Note: in the denominator, you add the Laplace smoother for each feature, so it's J times alpha
+  mu.numerator <- alpha + cont.tab[,"feature.j"]
+  mu.denominator <- J * alpha + cont.tab[,"not.feature.j"]
+  ## This is the estimated mu for each class for the feature `america`:
+  est.feature.mu <- mu.numerator/mu.denominator  
+  # Let's convert this to a tibble 
+  var_name <- paste0("mu.",j)
+  est.feature.mu <- tibble(!!var_name := matrix(est.feature.mu)[,1])
+  return(est.feature.mu)
+}
+
+# Now, let's use lapply to run this function on every token in the collapsed dfm
+## Note: you could speed this next function up by parallelising this apply function 
+##   using mclapply -- but this is beyond the scope of this course. 
+##   Happy to discuss in office hours if you are curious about how to do this.
+all.mus <- lapply(featnames(inaug.dfm.classes), function(x) calculateMu(inaug.dfm.classes, x, 1))
+
+# The object all.mus is a list of tibbles, which we now want to combine into the `est` object
+est <- bind_cols(est[,1:2], all.mus) # <- note: dropped the original mu.america from above so we don't duplicate!
+```
+
+Let's take a look at our calculations:
+
+```{r}
+print(est)
+```
+
+The table above gives us our estimated model parameters for our Naïve Bayes classifier. In other words, the table above is our estimated model of langauge, which we can now use to calculate the probability that any given document is a Trump document or not a Trump document. Let's try it out on a couple documents in our corpus. 
+
+First, let's use it to try to classify Obama's 2009 address. If our classifier is good, it will predict that Obama's 2009 address wasn't given by Trump:
+
+```{r}
+obama2009 <- inaug.dfm %>% 
+  dfm_subset(President=="Obama" & Year==2009) %>% 
+  convert("data.frame") %>%
+  tibble()
+```
+
+We will take the model estimated parameters and calculate two probabilities for this document: the probability of it being a Trump document and the probability of it not being a Trump document. We can use the formula from lecture:
+$$
+\Pr(\pi_{ik} = 1 | D_i) \propto 
+\hat{\delta}_k 
+\prod_{j=1}^J \left(\hat{\mu}_{kj}^{W_{ij}}\right)
+$$
+
+Now let's do the calculations and classify:
+```{r}
+probs <- mutate(est[,1], pr = NA)
+for(k in c("Not.Trump", "Trump")){
+  ## Extract the word counts from the Obama document
+  Wi <- obama2009[2:ncol(obama2009)]
+  
+  ## For each feature j, calculate mu^W then take product
+  prod.mu.W <- prod(t(est[est$class==k,3:ncol(est)])^(t(obama2009[2:ncol(obama2009)]))[,1])
+  
+  ## Now weight this calculation by delta and add to probs object
+  probs$pr[probs$class==k] <- est$delta[est$class==k] * prod.mu.W
+}
+print(probs)
+cat(paste0("Naïve Bayes classification for Obama's 2009 speech: ", probs$class[which(probs$pr == max(probs$pr))]))
+```
+
+We can do this for all the speeches:
+```{r}
+for(i in 1:nrow(inaug.dfm)){
+  Di <- inaug.dfm %>% 
+    .[i,] %>% 
+    convert("data.frame") %>%
+    tibble()
+  probs <- mutate(est[,1], pr = NA)
+  for(k in c("Not.Trump", "Trump")){
+    ## Extract the word counts from the Obama document
+    Wi <- Di[2:ncol(Di)]
+    
+    ## For each feature j, calculate mu^W then take product
+    prod.mu.W <- prod(t(est[est$class==k,3:ncol(est)])^(t(Wi))[,1])
+    
+    ## Now weight this calculation by delta and add to probs object
+    probs$pr[probs$class==k] <- est$delta[est$class==k] * prod.mu.W
+  }
+  cat(paste0("Naïve Bayes classification for ", Di$doc_id[1], " speech: ", probs$class[which(probs$pr == max(probs$pr))], "\n"))
+}
+```
+
+This did pretty good!

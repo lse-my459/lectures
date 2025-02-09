@@ -1,0 +1,331 @@
+---
+title: "Seminar 2: Discriminating Words"
+subtitle: "LSE MY459: Quantitative Text Analysis"
+date-modified: "10 February 2025"
+toc: true
+format: html
+execute:
+  echo: true
+  eval: false
+---
+
+**Note**: we have set the document-level default for `eval` to be `false` (see above). This means none of the code chunks below will run when you render the file. However, you may wish to change this to `true` while you are actively working with the document so that the code runs when you render.
+
+First, let's do some "directory management" by specifying the file path to the folder on your computer where you wish to store this week's seminar materials. 
+
+```{r}
+## What is the full path to the directory for this week's seminar files?
+wdir <- "" # <- paste your path here
+```
+
+## Identifying discriminating words from lecture examples
+
+In lecture we looked at the built-in corpus of inaugural addresses to see how discriminating words could be quantitatively identified. Specifically, we wanted to find words that best helped us distinguish Trump's 2017 inaugural address from all other post war presidential inaugural addresses. Why might we want to do this? For example, it gives us a sense for what kind of language is distinctively "Trumpian." We could also look to see which words most discriminate among Democrats and Republicans. (See the seminar exercises.)
+
+Now let's look at the code used to do this. In this section, we will be calculating discriminating words "manually" (meaning without using `quanteda`s simple function). This is to help you understand concpetually what is happening in the calculations. You may need to calculate discriminating words on the exam, so you should be able to conceptualise how to do it without just using the `quanteda` function for measuring discriminating words.
+
+First, let's load the corpus and create a tokens object after we do a bit of preprocessing.
+
+```{r}
+library("quanteda")
+library("tidyverse")
+# Load the corpus
+inaug.corp <- data_corpus_inaugural
+# Add a new variable to the corpus (called a "docvar") that indicates whether a speech was a Trump speech or not
+inaug.corp$Trump <- ifelse(inaug.corp$President=="Trump","Trump","Not.Trump")
+# Remove all speeches before 1945 because we're looking only at post-war presidential inaugurations
+inaug.corp <- corpus_subset(inaug.corp, Year > 1945)
+# Now create a tokens object doing some simple pre-processing
+inaug.toks <- inaug.corp %>%
+  tokens(remove_punct = TRUE,
+         remove_symbols = TRUE,
+         remove_numbers = TRUE) %>%
+  tokens_tolower() %>%
+  tokens_remove(stopwords("english")) %>%
+  tokens_wordstem()
+```
+
+How many features are in this DFM? How many documents? Notice here that to use the `nfeat` function to count features, we need to make the tokens object into a dfm.
+```{r}
+# Print the number of documents and features in our corpus after preprocessing
+print(ndoc(dfm(inaug.toks))) # number of documents
+print(nfeat(dfm(inaug.toks))) # number of features
+```
+
+To calculate which words are most discriminating, you need to go word-by-word and calculate a score. Then you can rank or arrange words by this score. Let's start with one word, `america` and calculate its score. Before doing that, we need to create the contingency table, where the row indicates the category (Trump versus Not Trump) and the column counts occurances of either `america` or any word except `america`. We can create this contingency table by "collapsing" the DFM. First, use the `tokens_lookup()` function to group all words that are not `america`. Then use the `dfm_groups()` function to collapse all non-Trump rows together by summing across those rows.
+
+```{r}
+cont.tab <- inaug.toks %>% 
+  tokens_lookup(dictionary(list(america = c("america"))), 
+                nomatch = "not.america") %>% 
+  dfm() %>% 
+  dfm_group(groups = Trump)
+```
+
+It's much easier to work with contingency tables that are in a standard tabular format than in a DFM format, so let's convert it to a matrix:
+
+```{r}
+cont.tab <- cont.tab %>%
+  convert("matrix")
+```
+
+Recall there are two methods for calculating discriminating words scores with a contingency table. First are statistical association measures that do not rely on a language model. Second are so-called "fightin' words" scores that use a language model. Let's look at each in turn.
+
+### Statistical association measures (using an independence assumption)
+
+Statistical association measures start by creating a hypothetical contingency table that has expected word counts under an **independence assumption** that the particular word being considered (here: `america`) is uncorrelated with the category.
+
+We can calculate the four cells of the hypothetical contingency table as follows:
+
+```{r}
+# Some basic counts used to calculate probabilities
+Nn <- sum(cont.tab[,2]) # number of times tokens other than `america` appear
+Na <- sum(cont.tab[,1]) # number of times `america` appears
+NO <- sum(cont.tab[1,]) # number of tokens spoken by Other Presidents
+NT <- sum(cont.tab[2,]) # number of tokens spoken by Trump
+N <- sum(cont.tab) # total tokens in corpus
+
+# Independence model probabilities for each cell of the hypo contingency table
+p11 <- (NO/N) * (Na/N)
+p12 <- (NO/N) * (Nn/N)
+p21 <- (NT/N) * (Na/N)
+p22 <- (NT/N) * (Nn/N)
+
+# Hypothetical contingency table
+hcont.tab <- rbind(c(p11*N, p12*N),
+                   c(p21*N, p22*N))
+
+# Label things nicely
+row.names(hcont.tab) <- row.names(cont.tab)
+colnames(hcont.tab) <- colnames(cont.tab)
+
+print(hcont.tab)
+```
+
+There is actually a shortcut for producing this hypothetical contingency table once you make the real contingency table. Look at the docs for the `chisq.test()` function to learn more.
+
+```{r}
+# ?chisq.test # <- To learn more
+hcont.tab <- chisq.test(cont.tab)[["expected"]]
+```
+
+Using both the contingency table and the hypothetical contingency table we can calculate three statistics that will help us quantify how discriminating the word `america` is. Recall the formulas from lecture:
+
+**Point-wise mutual information**:
+$$
+\text{pmi}_{kj} = \log \left(\frac{W_{kj}}{{E}_{kj}} \right)
+$$
+
+**Likelihood ratio statistic**:
+$$
+G^2_{kj} = 2 \times \sum_k \sum_j \left (W_{kj} \times \log \left(\frac{W_{kj}}{{E}_{kj}} \right)\right)
+$$
+
+**Pearson's $\chi^2$ statistic**:
+$$
+\chi^2_{kj} = \sum_k \sum_j \left(\frac{\left(W_{kj} - {E}_{kj}\right)^2}{{E}_{kj}}\right)
+$$
+
+We can do these calculations with our data as follows
+
+```{r}
+## PMI
+pmi.america <- log(cont.tab[2,1]/hcont.tab[2,1]) # why do we use element 2,1 from each table? (look back at formula for PMI)
+
+## Likelihood ratio statistic
+g2.america <- 2 * sum(cont.tab * log(cont.tab/hcont.tab))
+
+## Pearson's chi2 statistic
+chi2.america <- sum((cont.tab - hcont.tab)^2/hcont.tab)
+
+message("PMI: ", pmi.america)
+message("Likelihood ratio: ", g2.america)
+message("Pearson's chi2: ", chi2.america)
+```
+
+You can also do this easily in `quanteda`, which calls this measuring the "keyness" of words (rather than measuing how discriminating they are).
+
+```{r}
+library("quanteda.textstats") # need this for the keyness function
+
+## PMI
+inaug.toks %>%
+  dfm() %>%
+  textstat_keyness(measure = "pmi",
+                   target = "2017-Trump",
+                   correction = "none") %>%
+  filter(feature=="america")
+
+## Likelihood ratio statistic
+inaug.toks %>%
+  dfm() %>%
+  textstat_keyness(measure = "lr",
+                   target = "2017-Trump",
+                   correction = "none") %>%
+  filter(feature=="america")
+
+## Pearson's chi2 statistic
+inaug.toks %>%
+  dfm() %>%
+  textstat_keyness(measure = "chi2",
+                   target = "2017-Trump",
+                   correction = "none") %>%
+  filter(feature=="america")
+```
+
+### Fightin' words
+
+The fightin' words approach uses a model of language to achieve a similar outcome as the statistical association measures. 
+
+First, you need to calculate the probability that the word $j$ will occur in each category $k$ using this formula:
+$$
+\widehat{\mu}_{kj} = \frac{W_{kj} + \alpha_j}{W_{k} + \sum_j \alpha_j}
+$$
+For the example we're considering here, the two "categories" are Trump and all other postwar presidents, so for each word, we will need to calculate this number for each of the two categories. Typically (and definitely in this course), you set $\alpha_j = 1$:
+$$
+\widehat{\mu}_{kj} = \frac{W_{kj} + 1}{W_{k} + 2}
+$$
+Now, let's calculate these probabilities for the word `nation` using our data from the contingency table.
+```{r}
+mu.nation.Oth <- (cont.tab[1,1]+1)/(sum(cont.tab[1,])+2)
+mu.nation.Trump <- (cont.tab[2,1]+1)/(sum(cont.tab[2,])+2)
+```
+
+For a particular word, after you calculate the probabilities (as above), then you then use them to calculate the $z$-score for the word. Recall from lecture, this is a three step process. First, calculate this:
+$$
+\hat{\delta}_{j}^{(k-k')} = \log\left(\frac{\widehat{\mu}_{kj}}{1-\widehat{\mu}_{kj}}\right) - \log\left(\frac{\widehat{\mu}_{k'j}}{1-\widehat{\mu}_{k'j}}\right)
+$$
+Then this:
+$$
+\textrm{Var}\left(\hat{\delta}_{j}^{(k-k')}\right) \approx \frac{1}{W_{kj} + \alpha_{j}} + \frac{1}{W_{k'j} + \alpha_{j}} 
+$$
+Finally the $z$-score:
+$$
+\hat{z}_{j}^{(k-k')} = \frac{\hat{\delta}_{j}^{(k-k')}}{\sqrt{\textrm{Var}\left(\hat{\delta}_{j}^{(k-k')}\right)}} 
+$$
+Let's do this for the word `nation` in our data.
+```{r}
+# Step 1, calculate delta
+delta.nation.DvsR <- log(mu.nation.Oth/(1-mu.nation.Oth)) - log(mu.nation.Trump/(1-mu.nation.Trump))
+# Step 2, calculate Var(delta)
+var.delta.nation.DvsR <- 1/(1+cont.tab[1,1]) + 1/(1+cont.tab[2,1])
+# Step 3, calculate z-score
+z.nation.DvsR <- delta.nation.DvsR/sqrt(var.delta.nation.DvsR)
+print(z.nation.DvsR)
+```
+
+You can see here that the $z$-score (the "fightin' words" score) for the word `nation` is approximately 1.084. Since this is positive, this indicates higher use by presidents other than Trump (see how we calculated $\hat{\delta}$). 
+
+### Statistical significance
+
+All of these methods for measuring discriminating words can be interpreted in terms of statistical significance. (PMI is a bit more difficult, so let's set that one aside.)
+
+- Both the Likelihood ratio statistic and the Pearson's chi2 statistic are distributed according to a chi2 distribution with one degree of freedom. You can find the associated threshold test statistic and p-value using a standard table, like the one here: <https://math.arizona.edu/~jwatkins/chi-square-table.pdf>
+- The "fightin' words" score is simply a $z$-score, and you can use a z-score table to figure out the p-values. Rule of thumb is that a z-score above 2 (more precisely, 1.96) or below -2 (more precisely -1.96) is statistically signifcant at the 0.05 level
+
+## Identifying most unique features of documents
+
+We will again look at a corpus of tweets posted by the four leading candidates in the 2016 US Presidential primaries. Let's find on our computer, or download if we haven't yet:
+
+```{r}
+## Where is the remote copy of the file?
+rfile <- "https://github.com/lse-my459/lectures/blob/master/week04/candidate-tweets.csv"
+
+## Where will we store the local copy if it?
+lfile <- strsplit(rfile, "/")[[1]]
+lfile <- lfile[length(lfile)]
+lfile <- file.path(wdir, lfile) # creates full file path
+
+## Check if you have the file yet and if not, download it to correct location
+if(!file.exists(lfile)){
+  download.file(rfile, lfile)
+}
+```
+
+Let's use `quanteda` to measure the "keyness" of the words in the tweets. First, let's load the data, add a variable the party of the candidate, and turn into a corpus.
+
+```{r}
+# library("quanteda.textplots")
+library("quanteda.textstats")
+
+tweets <- read_csv('candidate-tweets.csv')
+tweets$Party <- ifelse(grepl("(Bernie|Hillary)", tweets$screen_name), "Democrat", "Republican")
+
+twcorpus <- tweets %>%
+  corpus()
+```
+
+Next, let's create a tokens object, doing a little "standard" preprocessing.
+
+```{r}
+twtoks <- twcorpus %>%
+  tokens(remove_punct = TRUE,
+         remove_symbols = TRUE,
+         remove_numbers = TRUE) %>%
+  tokens_tolower() %>%
+  tokens_remove(stopwords("english")) %>%
+  tokens_wordstem()
+```
+
+Now we're ready to start measuring discriminating words. First, we need to decide what categories we want to use to measure. One thing we could do is just look at each candidate individually and ask, "how distinctive is their rhetoric relative to the others?" To do this, we need to create a DFM, collapsing it by the categories we want to discriminate among. Since `screen_name` indicates which candidate, we'll use that:
+
+```{r}
+twdfm <- twtoks %>% 
+  dfm() %>%
+  dfm_group(groups=c(screen_name))
+```
+
+Now, let's look at the top discriminating words for each candidate using the Pearson's chi2 measure:
+
+```{r}
+# Donald Trump
+textstat_keyness(twdfm, target="realDonaldTrump", measure="chi2") %>%
+  head(n=20)
+# Hillary Clinton
+textstat_keyness(twdfm, target="HillaryClinton", measure="chi2") %>%
+  head(n=20)
+# Ted Cruz
+textstat_keyness(twdfm, target="tedcruz", measure="chi2") %>%
+  head(n=20)
+# Bernie Sanders
+textstat_keyness(twdfm, target="BernieSanders", measure="chi2") %>%
+  head(n=20)
+```
+
+Looking at these suggests we should do some more data cleaning!
+
+Now let's look to see how the rhetoric of tweets differed across party. We now collapse the DFM by the party variable and not the screen_name.
+
+```{r}
+twdfm <- twtoks %>% 
+  dfm() %>%
+  dfm_group(groups=c(Party)) 
+```
+
+Let's calculate Pearson's chi2:
+
+```{r}
+chi2.dem <- twdfm %>% 
+  textstat_keyness(target="Democrat", measure="chi2") %>%
+  tibble()
+```
+
+Finally, let's plot this. We'll only plot the top 10 and bottom 10 most discriminating words.
+
+```{r}
+extremes <- c(1:10,(nrow(chi2.dem)-10):nrow(chi2.dem))
+chi2.dem  %>%
+  select(feature, chi2) %>%
+  mutate(feature = factor(feature, levels = rev(feature))) %>%
+  mutate(Document = ifelse(chi2 > 0, "Democratic Candidates", "Republican Candidates")) %>%
+  filter(row_number() %in% extremes) %>%
+  ggplot() +
+  labs(title = "Most and least indicative of Democrats") +
+  xlab("Pearson's Chi2 Statistic") + 
+  scale_fill_manual(values = c("blue", "red")) + 
+  geom_col(aes(y = feature,  x = chi2, group = Document, fill = Document)) +
+  theme_bw() + 
+  geom_vline(xintercept = -3.841, linetype = "dashed") + 
+  geom_vline(xintercept = 3.841, linetype = "dashed")
+```
+

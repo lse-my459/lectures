@@ -1,0 +1,304 @@
+---
+title: "Seminar 2: Exercises"
+subtitle: "LSE MY459: Quantitative Text Analysis"
+date-modified: "10 February 2025" 
+toc: true
+format: html
+execute:
+  echo: true
+  eval: false
+---
+
+## Part 1: Using a dictionary
+
+1. Create a dictionary called `my.dict` that contains three keys: `country`, `law` and `freedom`. Under the country key, put the full name for the US. Under the law key, include any phrase related to "law" or "constitution" (including regex patterns as needed). Under the freedom key, include any phrase related to being "free" or having "liberty" (including regex patterns as needed). 
+
+```{r}
+my.dict <- dictionary(list(country = c("united states", "united states of america"),
+                         law=c("law[a-z]*", "constitution[a-z]*"),
+                         freedom=c("free[a-z]*", "libert[a-z]*")))
+```
+
+2. Apply the dictionary to the corpus of inaugural addresses. Be sure to account for possible regex patterns (if needed) and keep a count of every word that was not categorised using the dictionary. If you need to, consult the help docs: <https://quanteda.io/reference/dfm_lookup.html>.
+
+```{r}
+inaug.dict <- data_corpus_inaugural %>%
+  tokens() %>%
+  tokens_lookup(my.dict, valuetype = "regex", nomatch = "NONE") %>%
+  dfm()
+```
+
+3. Calculate the percentage of each inaugrual address devoted to themes around freedom (as captured by your simple dictionary). Which two presidents have the highest percent, and which have the lowest?
+
+```{r}
+free <- inaug.dict[,3]/inaug.dict[,4]
+free <- tibble(address = row.names(free), freedom = as.numeric(free)) %>%
+  arrange(freedom) %>%
+  filter(row_number() %in% c(1,2,nrow(.)-1,nrow(.)))
+print(free)
+```
+
+## Part 2: Republican versus Democratic inaugural rhetoric
+
+We will use all post-war inaugural addresses to measure which words are most discriminating between Republican and Democratic addresses. 
+
+1. Load the inaugural corpus, subset to only postwar inaugural addresses, tokenise and do some standard preprocessing.
+
+```{r}
+library("quanteda")
+inaug.corp <- data_corpus_inaugural
+inaug.corp <- corpus_subset(inaug.corp, Year > 1945)
+inaug.toks <- inaug.corp %>%
+  tokens(remove_punct = TRUE,
+         remove_symbols = TRUE,
+         remove_numbers = TRUE) %>%
+  tokens_tolower() %>%
+  tokens_remove(stopwords("english")) %>%
+  tokens_wordstem()
+```
+
+2. Create an R function that creates contingency table that you will use to calculate the relationship between how often a specific token appears in a speech and whether the speech was delivered by a Republican or Democrat. Make sure that the function returns a _matrix_, not a `quanteda` object.
+
+```{r}
+makeContTab <- function(token, corpus.tokens){
+  ct <- corpus.tokens %>% 
+    tokens_lookup(dictionary(list(word = c(token))), nomatch = "not.word") %>% 
+    dfm() %>% 
+    dfm_group(groups = Party) %>%
+    convert("matrix")
+  return(ct)
+}
+```
+
+3. Begin by focusing on one token, `nation`. Use your function to create a contingency table and print it here.
+
+```{r}
+cont.tab <- makeContTab("nation", inaug.toks)
+cat("Contingency table for token 'nation':\n")
+print(cont.tab)
+```
+
+4. Now make a hypothetical contingency table assuming that use of the word `nation` is uncorrelated with whether an address is given by a Republican or Democrat (the independence assumption we discussed in lecture).
+
+```{r}
+hcont.tab <- chisq.test(cont.tab)[["expected"]]
+print(hcont.tab)
+```
+
+5. Calculate the likelihood ratio statistic and the Pearson's $\chi^2$ statistic for the association between frequency of the word `nation` and partisanship of the president. Calculate manually using the formulas and your two contingency tables. Do not use `quanteda`.
+
+```{r}
+## Likelihood ratio statistic
+2 * sum(cont.tab * log(cont.tab/hcont.tab))
+
+## Pearson's chi2 statistic
+sum((cont.tab - hcont.tab)^2/hcont.tab)
+```
+
+6. Now calculate the likelihood ratio statistic for every feature in the corpus using the `quanteda` function, and plot the top and bottom words. 
+
+```{r}
+inaug.dfm <- inaug.toks %>% 
+  dfm() %>%
+  dfm_group(groups=c(Party)) 
+
+extremes <- c(1:10,(nfeat(inaug.dfm)-10):nfeat(inaug.dfm))
+
+inaug.dfm %>% 
+  textstat_keyness(target="Democratic", measure="lr") %>%
+  tibble() %>%
+  select(feature, G2) %>%
+  mutate(feature = factor(feature, levels = rev(feature))) %>%
+  mutate(Document = ifelse(G2 > 0, "Democratic Candidates", "Republican Candidates")) %>%
+  filter(row_number() %in% extremes) %>%
+  ggplot() +
+  labs(title = "Most and least indicative of Democrats") +
+  xlab("Likelihood Ratio Statistic") + 
+  scale_fill_manual(values = c("blue", "red")) + 
+  geom_col(aes(y = feature,  x = G2, group = Document, fill = Document)) +
+  theme_bw() + 
+  geom_vline(xintercept = -3.841, linetype = "dashed") + 
+  geom_vline(xintercept = 3.841, linetype = "dashed")
+```
+
+## Part 3: Naïve Bayes
+
+Using the corpus of 2016 US presidential primary candidate tweets, we will now use Naive Bayes to try to classify whether tweets were written by Hillary Clinton or not. 
+
+1. Load the candidate tweets data, and create a DFM using standard pre-processing steps. When you create the corpus, create a new variable indicating whether a tweet was written by Clinton or not.
+
+```{r}
+## Where is the remote copy of the file?
+rfile <- "https://raw.githubusercontent.com/lse-my459/lectures/master/week04/candidate-tweets.csv"
+
+## Where will we store the local copy if it?
+lfile <- strsplit(rfile, "/")[[1]]
+lfile <- lfile[length(lfile)]
+lfile <- file.path(wdir, lfile) # creates full file path
+
+## Check if you have the file yet and if not, download it to correct location
+if(!file.exists(lfile)){
+  download.file(rfile, lfile)
+}
+tweets <- read_csv('candidate-tweets.csv')
+tweets$Clinton <- ifelse(grepl("(Hillary)", tweets$screen_name), "HillaryClinton", "Not.HillaryClinton")
+
+# Make the corpus
+twcorpus <- tweets %>%
+  corpus()
+
+# Tokenise and do the standard preprocessing
+twtoks <- twcorpus %>%
+  tokens(remove_punct = TRUE,
+         remove_symbols = TRUE,
+         remove_numbers = TRUE, 
+         remove_url = TRUE) %>%
+  tokens_tolower() %>%
+  tokens_remove(stopwords("english")) %>%
+  tokens_wordstem()
+
+# Make the dfm
+twdfm <- twtoks %>% 
+  dfm()
+```
+
+2. Create a training set and a validation set. For this exercise, use 75% of your data for trianing and 25% for validation and name the training set `train` and the validation set `validation`. (Note: we are not going to do cross-validation here, although you should in general!)
+
+```{r}
+## Setting a seed to get the same answers every time we run this code
+set.seed(362183)
+## Randomly assign each row to training and validation sets according to the probabilities
+smp <- sample(c("train", "validation"), size=ndoc(twdfm), prob=c(0.75, 0.25), replace=TRUE)
+
+# shuffling to split into training and test set
+train <- twdfm[which(smp=="train"),]
+validation <- twdfm[which(smp=="validation"),]
+```
+
+3. Train a Naïve Bayes on the training set after loading the required package.
+
+```{r}
+library("quanteda.textmodels")
+# Train a Naive Bayes model on the training set
+nb <- textmodel_nb(train, docvars(train,"Clinton"))
+```
+
+4. Create two objects, one called `preds.insample` and one called `preds.validation` where you use the model you just estimated to classify in the training set (in sample) and in the validation set (out of sample).
+
+```{r}
+# Predicting classes in sample and out of sample
+preds.insample <- predict(nb)
+preds.validation <- predict(nb, newdata = validation)
+```
+
+5. Create two confusion matrices, one for your in sample classifications and one for your out of sample classifications. Print both confusion matrices.
+
+```{r}
+# computing the confusion matrix
+cm.insample <- table(docvars(train,"Clinton"), preds.insample)
+cm.validation <- table(docvars(validation,"Clinton"), preds.validation)
+
+print(cm.insample)
+print(cm.validation)
+```
+
+6. Create a function that calculates the precision and recall for a specific class $k$, as well as accuracy. You can start with the function from the file `03-supervised-learning.qmd`, but notice that fuction doesn't allow you to specify which class you want to calculate statistics for and it does not calculate accuracy. It assumes you are calculating the statistics for the class in the top row/left column of the confusion matrix.^[Why? I mentioned in lecture that when people have a binary classification task, they tend to speak in terms of positives and negatives, and they assume that precision and recall should be calculated for the "positive" class.] Include an argument `insample` which is set to `TRUE` or `FALSE`, and which will indicate whether the performance statistics are in or out of sample.
+ 
+```{r}
+# function to compute performance metrics
+precision.recall.k <- function(mytable, k, insample) {
+  i <- which(row.names(mytable) == k)
+  correct.classifications <- mytable[i,i]
+  pred.k <- sum(mytable[,i]) # how many did classifier predict in class k?
+  true.k <- sum(mytable[i,]) # how many are actually in class k (for real)?
+  
+  recall <- correct.classifications/true.k
+  precision <- correct.classifications/pred.k
+  accuracy <- sum(diag(mytable)) / sum(mytable)
+  print(mytable)
+  cat("\n", ifelse(insample,"In sample", "Out of sample"), "performance ",
+      "\n  accuracy =", round(accuracy, 2), 
+      "\n",
+      "\n     class =", k,
+      "\n precision =", round(precision, 2), 
+      "\n    recall =", round(recall, 2), "\n")
+}
+```
+
+7. Use your function to calculate the performance statistics on the Hillary Clinton class in sample and out of sample. Why is the performance in sample better than the performance out of sample?
+
+```{r}
+precision.recall.k(cm.insample, "HillaryClinton", insample=TRUE)
+precision.recall.k(cm.validation, "HillaryClinton", insample=FALSE)
+```
+
+## Part 4: Regularised Regression
+
+Now, let's predict whether a tweet was written by a Democratic candidate or a Republican candidate using regularised regression.
+
+1. Recreate the tweet DFM including a variable for whether a tweet was written by a Democratic or Republican candidate. (Refer to code in `02-discriminating-words.qmd` for info on which candidates are Democrats versus Republicans.)
+
+```{r}
+tweets <- read_csv('candidate-tweets.csv')
+tweets$Party <- ifelse(grepl("(Bernie|Hillary)", tweets$screen_name), "Democrat", "Republican")
+
+# Make the corpus
+twcorpus <- tweets %>%
+  corpus()
+
+# Tokenise and do the standard preprocessing
+twtoks <- twcorpus %>%
+  tokens(remove_punct = TRUE,
+         remove_symbols = TRUE,
+         remove_numbers = TRUE, 
+         remove_url = TRUE) %>%
+  tokens_tolower() %>%
+  tokens_remove(stopwords("english")) %>%
+  tokens_wordstem()
+
+# Make the dfm
+twdfm <- twtoks %>% 
+  dfm()
+```
+
+2. Create a new training set and a validation set. This time, use 85% of your data for training and 15% for validation.
+
+```{r}
+## Setting a seed to get the same answers every time we run this code
+set.seed(854)
+## Randomly assign each row to training and validation sets according to the probabilities
+smp <- sample(c("train", "validation"), size=ndoc(twdfm), prob=c(0.85, 0.15), replace=TRUE)
+
+# shuffling to split into training and test set
+train <- twdfm[which(smp=="train"),]
+validation <- twdfm[which(smp=="validation"),]
+```
+
+3. Train a lasso regression on the training set to predict the partisanship of a tweet's author. You should use 10-fold cross validation.
+
+```{r}
+library("glmnet")
+lasso <- cv.glmnet(x=train, y=docvars(train, "Party"), alpha=1, nfolds=10, family="binomial", keep=TRUE)
+```
+
+4. Again predict in sample and out of sample and create two corresponding confusion matrices. 
+
+```{r}
+# Predicting classes in sample and out of sample
+preds.insample <- predict(lasso, train, type="class")
+preds.validation <- predict(lasso, validation, type="class")
+
+# computing the confusion matrix
+cm.insample <- table(docvars(train,"Party"), preds.insample)
+cm.validation <- table(docvars(validation,"Party"), preds.validation)
+
+print(cm.insample)
+print(cm.validation)
+```
+
+5. Calculate the performance metrics for whether the classifier correctly predicts whether a Democrat wrote a tweet both in sample and out of sample. Use your function from above. Did the Naïve Bayes or the Lasso regression do better?
+
+```{r}
+precision.recall.k(cm.insample, "Democrat", insample=TRUE)
+precision.recall.k(cm.validation, "Democrat", insample=FALSE)
+```

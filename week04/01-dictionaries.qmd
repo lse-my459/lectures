@@ -1,0 +1,259 @@
+---
+title: "Seminar 2: Using Dictionaries"
+subtitle: "LSE MY459: Quantitative Text Analysis"
+date-modified: "10 February 2025"
+toc: true
+format: html
+execute:
+  echo: true
+  eval: false
+---
+
+**Note**: we have set the document-level default for `eval` to be `false` (see above). This means none of the code chunks below will run when you render the file. However, you may wish to change this to `true` while you are actively working with the document so that the code runs when you render.
+
+First, let's do some "directory management" by specifying the file path to the folder on your computer where you wish to store this week's seminar materials. 
+
+```{r}
+## What is the full path to the directory for this week's seminar files?
+wdir <- "" # <- paste your path here
+```
+
+We will look at a corpus of tweets posted by the four leading candidates in the 2016 US Presidential primaries. These are contained in a CSV file called `candidate-tweets.csv` available on the course website (see link below). First, let's download the file directly in R:
+
+```{r}
+## Where is the remote copy of the file?
+rfile <- "https://raw.githubusercontent.com/lse-my459/lectures/master/week04/candidate-tweets.csv"
+
+## Where will we store the local copy if it?
+lfile <- strsplit(rfile, "/")[[1]]
+lfile <- lfile[length(lfile)]
+lfile <- file.path(wdir, lfile) # creates full file path
+
+## Check if you have the file yet and if not, download it to correct location
+if(!file.exists(lfile)){
+  download.file(rfile, lfile)
+}
+```
+
+## Sentiment detection using dictionary methods
+
+One of the most common applications of dictionary methods is sentiment analysis: using a dictionary of positive and negative words, we compute a sentiment score for each individual document.
+
+Let's apply this technique to tweets by the four leading candidates in the 2016 US Presidential primaries. Which candidate was using positive rhetoric most frequently? Which candidate was most negative in their public messages on Twitter?
+
+```{r}
+library("tidyverse")
+library("quanteda")
+tweets <- read_csv('candidate-tweets.csv')
+```
+
+We will use the positive and negative categories in the augmented General Inquirer dictionary to measure the extent to which these candidates adopted a positive or negative tone during the election campaign.
+
+Note that first you will need to install the `quanteda.sentiment` package from GitHub
+
+```{r, eval=FALSE}
+devtools::install_github("quanteda/quanteda.sentiment")
+devtools::install_github("kbenoit/quanteda.dictionaries") 
+```
+
+First, we load the dictionary object. Note that we can apply the dictionary object directly (as we will see later), but for now let's learn how to do this if we had a list of positive and negative words on a different file.
+
+```{r}
+library("quanteda.sentiment")
+library("quanteda.dictionaries")
+data(data_dictionary_geninqposneg)
+
+pos.words <- data_dictionary_geninqposneg[['positive']]
+neg.words <- data_dictionary_geninqposneg[['negative']]
+# a look at a random sample of positive and negative words
+sample(pos.words, 10)
+sample(neg.words, 10)
+```
+
+### Calculating sentiment manually
+
+We will eventually use `quanteda` to apply dictionaries quickly. But before we do that, let's do it manually. This is meant to help you understand the intuition behind applying dictionaries, as well as understand how to do it "by hand" (e.g., on your final exam).
+
+For all the analysis in the remainder of this quarto file, we won't do many of the "standard" preprocessing steps to our corpus before using the dictionary. Depending on your task, you may or may not want to do this. For example, you may want to stem words, or drop stop words before applying dictionaries. Below, we'll see how weighting will affect our results. But as always, you will need to make these choices thoughtfully when you do your own QTA analyses.
+
+One thing we _do_ want to do to our corpus is to make it entirely lowercase, since the dictionary stores its values in lowercase. Let's create a new variable.
+
+```{r}
+tweets$ltext <- str_to_lower(tweets$text) 
+```
+
+We will create some R code that iterates over every tweet and counts the number of positive words and the number of negative words in that tweet. We'll store the counts as new variables in the dataframe. 
+
+Since there are a lot of tweets in this corpus, this code will take a long time to run, so we'll just take a random sample of 100 tweets from each candidate as proof of concept. I have set this to sample 400 tweets, but if you find the code below runs too slowly, you can reduce the number below so you get a smaller sample.
+
+```{r}
+set.seed(2025) # set the seed if you get the same results every time you run this
+small.tweets <- tweets %>% 
+  group_by(screen_name) %>%
+  slice_sample(n=100)
+```
+
+Now, let's "manually" count positive and negative words. We use the `sapply` function here, which does the same thing as a loop but much faster and with more compact code. If you need to refresh your memory about this, please review the R preparatory materials which are a prerequisite for this course.
+
+```{r}
+# First create a function that takes in text and a token list and counts how many 
+# times tokens from the token list appear in the text
+count.toks <- function(text, tok_list){
+  t.count <- sapply(tok_list, function(x) str_count(text, x))
+  return(sum(t.count))
+}
+
+small.tweets$pos.words <- unname(sapply(small.tweets$ltext, function(x) count.toks(x, pos.words)))
+small.tweets$neg.words <- unname(sapply(small.tweets$ltext, function(x) count.toks(x, neg.words)))
+```
+
+Let's also count the total number of words in each tweet. For this, we'll just break up by white space as usual.
+
+```{r}
+small.tweets$total.words <- sapply(str_split(small.tweets$ltext, "\\s+"), length)
+```
+
+Finally, let's calculate the proportion of each tweet that is positive and the proportion that is negative, and show averages by candidate.
+
+```{r}
+small.tweets$prop.pos <- small.tweets$pos.words/small.tweets$total.words
+small.tweets$prop.neg <- small.tweets$neg.words/small.tweets$total.words
+small.tweets[1:10,c('text', 'prop.pos', 'prop.neg', 'text')]
+```
+
+Finally, let's calculate the percentage of positive words and negative words tweeted by each candidate across all their tweets.
+
+```{r}
+small.tweets %>%
+  group_by(screen_name) %>%
+  summarise(pos = sum(pos.words)/sum(total.words),
+            neg = sum(neg.words)/sum(total.words)) %>%
+  arrange(desc(pos))
+```
+
+### Using `quanteda` 
+
+Now we use `quanteda` to do sentiment analysis on the whole corpus. You will see this is quite a bit easier (and much faster) than what we did above, since the developers of `quanteda` have optimised the code to perform these tasks much more efficiently.
+
+As earlier in the course, we will convert our text to a corpus object. Note that here `corpus` takes detects some metadata, which we will use later.
+
+```{r}
+twcorpus <- corpus(tweets)
+```
+
+Now we're ready to run the sentiment analysis! First we will construct a dictionary object.
+
+```{r}
+sent_dictionary <- dictionary(list(positive = pos.words,
+                                   negative = neg.words))
+```
+
+And now we apply it to the corpus in order to count the number of words that appear in each category
+
+```{r}
+toks <- tokens(twcorpus)
+dfm <- dfm(toks)
+sent <- dfm_lookup(dfm, sent_dictionary)
+```
+
+We can then extract the score and add it to the data frame as a new variable
+
+```{r}
+tweets$score <- as.numeric(sent[,1]) - as.numeric(sent[,2])
+```
+
+And now start answering some descriptive questions...
+
+```{r}
+# what is the average sentiment score?
+mean(tweets$score)
+# what is the most positive and most negative tweet?
+tweets[which.max(tweets$score),]
+tweets[which.min(tweets$score),]
+# what is the proportion of positive, neutral, and negative tweets?
+tweets$sentiment <- "neutral"
+tweets$sentiment[tweets$score<0] <- "negative"
+tweets$sentiment[tweets$score>0] <- "positive"
+table(tweets$sentiment)
+```
+
+We can also compute it at the candidate level by taking the average of the sentiment scores:
+
+```{r}
+# loop over candidates
+candidates <- c("realDonaldTrump", "HillaryClinton", "tedcruz", "BernieSanders")
+
+for (cand in candidates){
+  message(cand, " -- average sentiment: ",
+      round(mean(tweets$score[tweets$screen_name==cand]), 4)
+    )
+}
+```
+
+But what happens if we now run the analysis excluding a single word?
+
+```{r}
+pos.words <- pos.words[-which(pos.words=="great")]
+
+sent_dictionary <- dictionary(list(positive = pos.words,
+                                   negative = neg.words))
+toks <- tokens(twcorpus)
+sent <- dfm_lookup(dfm(toks), sent_dictionary)
+tweets$score <- as.numeric(sent[,1]) - as.numeric(sent[,2])
+
+for (cand in candidates){
+  message(cand, " -- average sentiment: ",
+      round(mean(tweets$score[tweets$screen_name==cand]), 4)
+    )
+}
+
+```
+
+How would we normalize by text length? (Maybe not necessary here given that tweets have roughly the same length.)
+
+```{r}
+# collapse by account into 4 documents
+toks <- tokens(twcorpus)
+twdfm <- dfm(toks)
+twdfm <- dfm_group(twdfm, groups = screen_name)
+twdfm
+
+# turn word counts into proportions
+twdfm[1:4, 1:10]
+twdfm <- dfm_weight(twdfm, scheme="prop")
+twdfm[1:4, 1:10]
+
+# Apply dictionary using `dfm_lookup()` function:
+sent <- dfm_lookup(twdfm, dictionary = sent_dictionary)
+sent
+(sent[,1]-sent[,2])
+
+```
+
+Finally, let's apply a different dictionary so that we can practice with dictionaries in different formats:
+
+```{r}
+data(data_dictionary_MFD)
+# dictionary keys
+names(data_dictionary_MFD)
+# looking at words within first key
+data_dictionary_MFD$care.virtue[1:10]
+
+# applying dictionary
+# 1) collapse by account
+toks <- tokens(twcorpus)
+twdfm <- dfm(toks)
+twdfm <- dfm_group(twdfm, groups = screen_name)
+# 2) turn words into proportions
+twdfm <- dfm_weight(twdfm, scheme="prop")
+# 3) apply dictionary
+moral <- dfm_lookup(twdfm, dictionary = data_dictionary_MFD)
+
+# are liberals more sensitive to care and virtue?
+dfm_sort(moral[,'care.virtue']*100, margin='documents')
+dfm_sort(moral[,'fairness.virtue']*100, margin='documents')
+
+# are conservatives more sensitive to sanctity and authority?
+dfm_sort(moral[,'sanctity.virtue']*100, margin='documents')
+dfm_sort(moral[,'authority.virtue']*100, margin='documents')
+```
